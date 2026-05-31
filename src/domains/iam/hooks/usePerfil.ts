@@ -1,5 +1,36 @@
 import { useState, useEffect } from 'react';
 import type { PerfilUsuario, DatosPersonales, PreferenciasNotificacion } from '../models/perfil.model';
+import type { User } from '../models/user.model';
+
+const getStoredUser = (): User | null => {
+  const raw = localStorage.getItem('authUser');
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw) as User;
+  } catch (err) {
+    console.error('Error al parsear authUser desde localStorage:', err);
+    localStorage.removeItem('authUser');
+    return null;
+  }
+};
+
+const createPerfilFromUser = (user: User): PerfilUsuario => ({
+  id: String(user.userId),
+  rol: 'Cuidador Principal',
+  estado: 'Cuenta Activa',
+  datos: {
+    nombres: user.firstName,
+    apellidos: user.lastName,
+    correo: user.email,
+    telefono: user.phoneNumber || ''
+  },
+  preferencias: {
+    alertasInmediatas: true,
+    resumenDiario: true,
+    actualizacionesSistema: false
+  }
+});
 
 export const usePerfil = () => {
   const [perfil, setPerfil] = useState<PerfilUsuario | null>(null);
@@ -19,8 +50,19 @@ export const usePerfil = () => {
   useEffect(() => {
     const fetchPerfil = async () => {
       setIsLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 500)); // Simulación API
 
+      const storedUser = getStoredUser();
+      if (storedUser) {
+        const profileData = createPerfilFromUser(storedUser);
+        setPerfil(profileData);
+        setFormDatos(profileData.datos);
+        setFormPreferencias(profileData.preferencias);
+        setIsLoading(false);
+        return;
+      }
+
+      // Si no hay usuario en sesión, usar datos por defecto mientras se carga.
+      await new Promise(resolve => setTimeout(resolve, 500));
       const mockData: PerfilUsuario = {
         id: '1',
         rol: 'Cuidador Principal',
@@ -37,7 +79,6 @@ export const usePerfil = () => {
           actualizacionesSistema: false
         }
       };
-
       setPerfil(mockData);
       setFormDatos(mockData.datos);
       setFormPreferencias(mockData.preferencias);

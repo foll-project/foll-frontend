@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Input } from '../../../shared/components/inputs/Input';
 import { Button } from '../../../shared/components/buttons/Button';
+import { useAuth } from '../hooks/useAuth';
+import type { RegisterData } from '../models/user.model';
 // IMPORTAMOS TU LOGO REAL
 import logo from '../../../assets/logo.svg';
 
@@ -9,25 +11,80 @@ import logo from '../../../assets/logo.svg';
 const UserIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
 const MailIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/></svg>;
 const PhoneIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.9.339 1.84.573 2.81.7A2 2 0 0122 16.92z"/></svg>;
-const DniIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="16" rx="2" ry="2"/><circle cx="9" cy="10" r="2"/><path d="M15 8h2M15 12h2M7 16h5"/></svg>;
 const LockIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>;
 const ArrowRightIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14m-7-7l7 7-7 7"/></svg>;
 
 export default function Register() {
+  const navigate = useNavigate();
+  const { register: registerUser, isLoading, error } = useAuth();
+
   const [formData, setFormData] = useState({
-    nombres: '', apellidos: '', correo: '', celular: '', dni: '', contraseña: '', confirmarContraseña: '',
+    firstName: '',
+    lastName: '',
+    email: '',
+    phoneNumber: '',
+    password: '',
+    confirmPassword: '',
   });
-  const [isLoading, setIsLoading] = useState(false);
+
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setValidationError(null);
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    console.log('Registrando...', formData);
-    setTimeout(() => setIsLoading(false), 2000); 
+    setValidationError(null);
+
+    // Validaciones
+    if (!formData.firstName.trim()) {
+      setValidationError('El nombre es requerido');
+      return;
+    }
+    if (!formData.lastName.trim()) {
+      setValidationError('El apellido es requerido');
+      return;
+    }
+    if (!formData.email.trim()) {
+      setValidationError('El email es requerido');
+      return;
+    }
+    if (!formData.phoneNumber.trim()) {
+      setValidationError('El número de teléfono es requerido');
+      return;
+    }
+    if (!formData.password) {
+      setValidationError('La contraseña es requerida');
+      return;
+    }
+    if (formData.password.length < 6) {
+      setValidationError('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setValidationError('Las contraseñas no coinciden');
+      return;
+    }
+
+    try {
+      const data: RegisterData = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phoneNumber: formData.phoneNumber,
+        password: formData.password,
+      };
+
+      await registerUser(data);
+      
+      // Redirigir al inicio después de registro exitoso
+      navigate('/');
+    } catch (err) {
+      console.error('Error en registro:', err);
+      // El error ya está en el estado del hook
+    }
   };
 
   return (
@@ -70,19 +127,79 @@ export default function Register() {
               <p className="text-xs text-gray-500">Ingresa tus datos para crear tu cuenta.</p>
             </div>
 
+            {/* Mostrar errores */}
+            {(error || validationError) && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-xs text-red-700 font-medium">
+                  {error || validationError}
+                </p>
+              </div>
+            )}
+
             <form onSubmit={handleRegister} className="space-y-4.5 flex-1 overflow-y-auto pr-2">
               <div className="grid grid-cols-2 gap-4">
-                <Input label="Nombres" name="nombres" value={formData.nombres} onChange={handleChange} placeholder="Ej. Juan" icon={<UserIcon />} />
-                <Input label="Apellidos" name="apellidos" value={formData.apellidos} onChange={handleChange} placeholder="Ej. Pérez" icon={<UserIcon />} />
+                <Input
+                  label="Nombres"
+                  name="firstName"
+                  value={formData.firstName}
+                  onChange={handleChange}
+                  placeholder="Ej. Juan"
+                  icon={<UserIcon />}
+                  disabled={isLoading}
+                />
+                <Input
+                  label="Apellidos"
+                  name="lastName"
+                  value={formData.lastName}
+                  onChange={handleChange}
+                  placeholder="Ej. Pérez"
+                  icon={<UserIcon />}
+                  disabled={isLoading}
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <Input label="Correo" name="correo" type="email" value={formData.correo} onChange={handleChange} placeholder="juan@foll.com" icon={<MailIcon />} />
-                <Input label="Celular" name="celular" type="tel" value={formData.celular} onChange={handleChange} placeholder="912 345 678" icon={<PhoneIcon />} />
+                <Input
+                  label="Correo"
+                  name="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  placeholder="juan@foll.com"
+                  icon={<MailIcon />}
+                  disabled={isLoading}
+                />
+                <Input
+                  label="Celular"
+                  name="phoneNumber"
+                  type="tel"
+                  value={formData.phoneNumber}
+                  onChange={handleChange}
+                  placeholder="912 345 678"
+                  icon={<PhoneIcon />}
+                  disabled={isLoading}
+                />
               </div>
-              <Input label="DNI" name="dni" value={formData.dni} onChange={handleChange} placeholder="Ej. 12345678" icon={<DniIcon />} />
               <div className="grid grid-cols-2 gap-4">
-                <Input label="Contraseña" name="contraseña" type="password" value={formData.contraseña} onChange={handleChange} placeholder="••••••••" icon={<LockIcon />} />
-                <Input label="Confirmar Contraseña" name="confirmarContraseña" type="password" value={formData.confirmarContraseña} onChange={handleChange} placeholder="••••••••" icon={<LockIcon />} />
+                <Input
+                  label="Contraseña"
+                  name="password"
+                  type="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder="••••••••"
+                  icon={<LockIcon />}
+                  disabled={isLoading}
+                />
+                <Input
+                  label="Confirmar Contraseña"
+                  name="confirmPassword"
+                  type="password"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  placeholder="••••••••"
+                  icon={<LockIcon />}
+                  disabled={isLoading}
+                />
               </div>
               <div className="pt-5 pb-2">
                 <Button type="submit" isLoading={isLoading} icon={<ArrowRightIcon />}>

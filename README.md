@@ -71,3 +71,6 @@ export default defineConfig([
   },
 ])
 ```
+## Configuration
+
+Before running the project, create a `.env` file in the project root using `.env.example` as a reference.
