@@ -4,6 +4,43 @@ import type { Abuelito, SolicitudAcceso, RegistrarAbuelitoDTO } from '../models/
 import { apiClient } from '../../../shared/api/client.ts'; 
 import { API_CONFIG } from '../../../shared/api/config.ts';
 
+interface BackendUser {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+}
+
+interface BackendCaregiver {
+  userId?: number;
+  user?: BackendUser;
+  caregiverKind?: string;
+}
+
+interface BackendAnnotation {
+  id?: number;
+  date?: string;
+  text?: string;
+  author?: string;
+}
+
+interface BackendPatient {
+  patientId?: number;
+  firstName?: string;
+  lastName?: string;
+  dni?: string;
+  birthDate?: string;
+  bloodType?: number;
+  medicalConditions?: Record<string, string>;
+  medications?: Record<string, string>;
+  caregivers?: BackendCaregiver[];
+  annotations?: BackendAnnotation[];
+}
+
+type BackendPatientResponse = BackendPatient & {
+  patient?: BackendPatient;
+  caregiverKind?: string;
+};
+
 
 
 const getUserIdFromToken = (): number | null => {
@@ -46,7 +83,24 @@ const calcularEdad = (fechaNacimiento: string): string => {
   return edad.toString();
 };
 
-const mapearAbuelitoDesdeBackend = (dataBackend: any): Abuelito => {
+const mapearAnotacionDesdeBackend = (a: BackendAnnotation) => ({
+  id: a.id?.toString() || Math.random().toString(),
+  fecha: a.date ? new Date(a.date).toLocaleDateString('es-ES', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+  }) : '',
+  texto: a.text || '',
+  autor: a.author || ''
+});
+
+const mapearValoresDiccionario = (value?: Record<string, string> | null): string[] => {
+  if (!value) {
+    return [];
+  }
+
+  return Object.values(value).filter((item) => item.trim().length > 0);
+};
+
+const mapearAbuelitoDesdeBackend = (dataBackend: BackendPatientResponse): Abuelito => {
   const patient = dataBackend.patient || dataBackend;
   
   // --- MOCK TEMPORAL DE DISPOSITIVO ---
@@ -61,34 +115,27 @@ const mapearAbuelitoDesdeBackend = (dataBackend: any): Abuelito => {
 
   return {
     id: patient.patientId?.toString() || '',
-    nombre: `${patient.firstName} ${patient.lastName}`.trim(),
+    nombre: `${patient.firstName || ''} ${patient.lastName || ''}`.trim(),
     rol: dataBackend.caregiverKind === 'official' ? 'Principal' : 'Invitado',
     estadoActual: 'Seguro', 
     ultimoReporte: 'Hace 5 min', // es simulado
     estadoVinculacion: 'Vinculado', // por ahora Forzamos visualmente a 'Vinculado'
     dispositivo: dispositivoSimulado, // Inyectamos el mock
     dni: patient.dni || '',
-    edad: calcularEdad(patient.birthDate),
-    grupoSanguineo: getBloodTypeString(patient.bloodType),
+    edad: calcularEdad(patient.birthDate || ''),
+    grupoSanguineo: getBloodTypeString(patient.bloodType || 0),
     
-    enfermedades: patient.medicalConditions ? Object.keys(patient.medicalConditions) : [],
-    medicamentos: patient.medications ? Object.keys(patient.medications) : [],
+    enfermedades: mapearValoresDiccionario(patient.medicalConditions),
+    medicamentos: mapearValoresDiccionario(patient.medications),
     
-    cuidadores: (patient.caregivers || []).map((c: any) => ({
-      id: c.userId?.toString(),
-      nombre: c.user ? `${c.user.firstName} ${c.user.lastName}` : 'Desconocido',
+    cuidadores: (patient.caregivers || []).map((c: BackendCaregiver) => ({
+      id: c.userId?.toString() || '',
+      nombre: c.user ? `${c.user.firstName || ''} ${c.user.lastName || ''}`.trim() : 'Desconocido',
       rol: c.caregiverKind === 'official' ? 'Principal' : 'Invitado',
       email: c.user?.email || ''
     })),
     
-    anotaciones: (patient.annotations || []).map((a: any) => ({
-      id: a.id?.toString() || Math.random().toString(),
-      fecha: a.date ? new Date(a.date).toLocaleDateString('es-ES', { 
-        day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' 
-      }) : '',
-      texto: a.text || '',
-      autor: a.author || ''
-    }))
+    anotaciones: (patient.annotations || []).map(mapearAnotacionDesdeBackend)
   };
 };
 
@@ -115,7 +162,7 @@ export const useAbuelitos = () => {
     const currentUserId = getUserIdFromToken();
     if (!currentUserId) return;
     try {
-      const response = await apiClient.get<any[]>(API_CONFIG.PATIENTS.GET_BY_CAREGIVER(currentUserId));
+      const response = await apiClient.get<BackendPatientResponse[]>(API_CONFIG.PATIENTS.GET_BY_CAREGIVER(currentUserId));
       setAbuelitos(response.map(mapearAbuelitoDesdeBackend));
     } catch (error) {
       console.error('Error recargando abuelitos:', error);
@@ -133,7 +180,7 @@ export const useAbuelitos = () => {
           return;
         }
 
-        const response = await apiClient.get<any[]>(API_CONFIG.PATIENTS.GET_BY_CAREGIVER(currentUserId));
+        const response = await apiClient.get<BackendPatientResponse[]>(API_CONFIG.PATIENTS.GET_BY_CAREGIVER(currentUserId));
         setAbuelitos(response.map(mapearAbuelitoDesdeBackend));
         setSolicitudes([]); // Lógica futura para invitaciones
 
@@ -173,7 +220,7 @@ export const useAbuelitos = () => {
         medications: datos.medicamentos.reduce((acc, med) => ({ ...acc, [med]: "Dosis estándar" }), {})
       };
 
-      await apiClient.post<any>(API_CONFIG.PATIENTS.CREATE, payloadBackend);
+      await apiClient.post<void>(API_CONFIG.PATIENTS.CREATE, payloadBackend);
       await recargarAbuelitos(); // Refrescamos todo para tener los IDs correctos
       setIsRegistrarOpen(false);
     } catch (error) {
@@ -245,6 +292,7 @@ export const useAbuelitos = () => {
   };
 
   const handleQuitarMando = async (abuelitoId: string, cuidadorId: string) => {
+    void cuidadorId;
     try {
       await apiClient.post(API_CONFIG.PATIENTS.RESTORE_GUARDIAN(Number(abuelitoId)));
       await recargarAbuelitos();
@@ -258,13 +306,8 @@ export const useAbuelitos = () => {
     try {
       await apiClient.post(API_CONFIG.PATIENTS.CREATE_ANNOTATION(Number(abuelitoId)), { content: texto });
       
-      const anotacionesBackend = await apiClient.get<any[]>(API_CONFIG.PATIENTS.GET_ANNOTATIONS(Number(abuelitoId)));
-      const anotacionesMapeadas = anotacionesBackend.map((a: any) => ({
-        id: a.id?.toString(),
-        fecha: new Date(a.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-        texto: a.text,
-        autor: a.author
-      }));
+      const anotacionesBackend = await apiClient.get<BackendAnnotation[]>(API_CONFIG.PATIENTS.GET_ANNOTATIONS(Number(abuelitoId)));
+      const anotacionesMapeadas = anotacionesBackend.map(mapearAnotacionDesdeBackend);
 
       setAbuelitos(prev => prev.map(a => a.id === abuelitoId ? { ...a, anotaciones: anotacionesMapeadas } : a));
       setIsAnotacionOpen(false);
@@ -304,14 +347,9 @@ export const useAbuelitos = () => {
 
       try {
         
-        const anotacionesBackend = await apiClient.get<any[]>(API_CONFIG.PATIENTS.GET_ANNOTATIONS(Number(id)));
+        const anotacionesBackend = await apiClient.get<BackendAnnotation[]>(API_CONFIG.PATIENTS.GET_ANNOTATIONS(Number(id)));
         
-        const anotacionesMapeadas = anotacionesBackend.map((a: any) => ({
-          id: a.id?.toString(),
-          fecha: new Date(a.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-          texto: a.text,
-          autor: a.author
-        }));
+        const anotacionesMapeadas = anotacionesBackend.map(mapearAnotacionDesdeBackend);
 
         // 4. Actualizamos la lista principal de abuelitos
         setAbuelitos(prev => prev.map(a => a.id === id ? { ...a, anotaciones: anotacionesMapeadas } : a));

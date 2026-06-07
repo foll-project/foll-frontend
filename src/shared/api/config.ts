@@ -1,7 +1,11 @@
 // Configuración de la API
 // Cambiar VITE_API_URL según tu entorno
 
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5237';
+
+if (!import.meta.env.VITE_API_URL) {
+  console.warn('VITE_API_URL no está definido. Usando http://localhost:5237 como fallback.');
+}
 
 export const API_CONFIG = {
   BASE_URL: API_BASE_URL,
@@ -37,6 +41,16 @@ export const API_CONFIG = {
     // Relationships
     GET_CAREGIVERS: (id: number) => `/api/care/patients/${id}/caregivers`,
     GET_BY_CAREGIVER: (caregiverUserId: number) => `/api/care/patients/by-caregiver/${caregiverUserId}`,
+  },
+
+  NOTIFICATIONS: {
+    LIST: '/api/notifications',
+    GET_ONE: (id: number) => `/api/notifications/${id}`,
+    DELIVERY_STATUS: (id: number) => `/api/notifications/${id}/delivery-status`,
+    MARK_AS_READ: (id: number) => `/api/notifications/${id}/read`,
+    ACKNOWLEDGE: (id: number) => `/api/notifications/${id}/acknowledge`,
+    PUSH_TOKENS: '/api/notifications/push-tokens',
+    DELETE_PUSH_TOKEN: (id: number) => `/api/notifications/push-tokens/${id}`,
   },
   
 };

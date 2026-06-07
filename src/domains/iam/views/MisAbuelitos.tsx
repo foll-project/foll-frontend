@@ -875,7 +875,7 @@ export default function MisAbuelitos() {
                       <p className="font-semibold text-[#16333F]">
                         {detalles.abuelitoSeleccionado.enfermedades?.join(
                           ", ",
-                        ) || "Ninguna"}
+                        ) || "Sin condiciones registradas"}
                       </p>
                     )}
                   </div>
@@ -899,7 +899,7 @@ export default function MisAbuelitos() {
                       <p className="font-semibold text-[#16333F]">
                         {detalles.abuelitoSeleccionado.medicamentos?.join(
                           ", ",
-                        ) || "Ninguno"}
+                        ) || "Sin medicamentos registrados"}
                       </p>
                     )}
                   </div>

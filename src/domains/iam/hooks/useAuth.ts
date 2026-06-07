@@ -1,25 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { LoginCredentials, RegisterData, User } from '../models/user.model';
 import { apiClient } from '../../../shared/api/client';
 import { API_CONFIG } from '../../../shared/api/config';
 
+const getStoredUser = (): User | null => {
+  const savedUser = localStorage.getItem('authUser');
+  if (!savedUser) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(savedUser) as User;
+  } catch (err) {
+    console.error('Error al parsear usuario guardado:', err);
+    localStorage.removeItem('authUser');
+    return null;
+  }
+};
+
 export const useAuth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-
-  // Verificar si hay un usuario guardado al cargar el componente
-  useEffect(() => {
-    const savedUser = localStorage.getItem('authUser');
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch (err) {
-        console.error('Error al parsear usuario guardado:', err);
-        localStorage.removeItem('authUser');
-      }
-    }
-  }, []);
+  const [user, setUser] = useState<User | null>(() => getStoredUser());
 
   // LOGIN: Enviar credenciales a la API
   const login = async (credentials: LoginCredentials) => {
