@@ -4,6 +4,7 @@ import type { Abuelito, SolicitudAcceso, RegistrarAbuelitoDTO } from '../models/
 import { apiClient } from '../../../shared/api/client.ts'; 
 import { API_CONFIG } from '../../../shared/api/config.ts';
 import { useNotifications } from '../../notifications/hooks/useNotifications';
+import { useInvitations } from '../../invitations/hooks/useInvitations';
 
 const TELEMETRY_POLL_INTERVAL_MS = 10000;
 
@@ -208,6 +209,11 @@ export const useAbuelitos = () => {
   // --- NOTIFICACIONES EN TIEMPO REAL (SignalR) ---
   const { notifications, acknowledge } = useNotifications();
 
+  // --- INVITACIONES EN TIEMPO REAL ---
+  // Si aprueban una invitación que envié, gano acceso a un nuevo abuelito:
+  // refrescamos la lista al instante para que aparezca sin recargar la página.
+  const { lastEvent: lastInvitationEvent, createInvitation } = useInvitations();
+
   // --- REFRESCAR LISTA COMPLETA ---
   // silent=true evita el spinner: se usa para el polling y refrescos por notificaciones.
   const recargarAbuelitos = async () => {
@@ -280,6 +286,14 @@ export const useAbuelitos = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastNotificationId]);
 
+  // --- REFRESH ANTE UN EVENTO DE INVITACIÓN (aceptada/rechazada) ---
+  useEffect(() => {
+    if (lastInvitationEvent) {
+      void recargarAbuelitos();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastInvitationEvent]);
+
   // --- CAÍDAS ACTIVAS (sin confirmar) POR PACIENTE ---
   const caidasActivas = useMemo(() => {
     const mapa: Record<string, CaidaActiva> = {};
@@ -309,7 +323,7 @@ export const useAbuelitos = () => {
   const handleVincularFamiliar = async (dni: string) => {
     try {
       // relationshipTypeId: 4 (Familiar por defecto, basado en tu RelationshipTypeConfiguration)
-      await apiClient.post(API_CONFIG.PATIENTS.CREATE_INVITATION(dni), { relationshipTypeId: 4 });
+      await createInvitation(dni.trim(), 4);
       setIsVincularOpen(false);
     } catch (error) {
       console.error('Error al solicitar vinculación:', error);
