@@ -56,30 +56,20 @@ export const useAuth = () => {
     }
   };
 
-  // REGISTRO: Enviar datos de registro a la API
+  // REGISTRO: crea la cuenta; el login se hace aparte para obtener el token.
   const register = async (data: RegisterData) => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await apiClient.post<User>(
+      await apiClient.post<{ message: string }>(
         API_CONFIG.AUTH.REGISTER,
         data
       );
 
-      // Guardar usuario en estado
-      setUser(response);
-
-      // Guardar token en localStorage
-      localStorage.setItem('authToken', response.token);
-
-      // Guardar usuario completo en localStorage
-      localStorage.setItem('authUser', JSON.stringify(response));
-
-      console.log('✓ Registro exitoso:', response.email);
-      return response;
+      console.log('✓ Registro exitoso:', data.email);
     } catch (err: unknown) {
-      const errorMsg = err instanceof Error 
-        ? err.message 
+      const errorMsg = err instanceof Error
+        ? err.message
         : 'Error en el registro';
       setError(errorMsg);
       console.error('✗ Error registro:', errorMsg);

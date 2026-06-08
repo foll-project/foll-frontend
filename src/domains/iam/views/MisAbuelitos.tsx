@@ -192,7 +192,7 @@ const NoteIcon = () => (
 );
 
 export default function MisAbuelitos() {
-  const { abuelitos, solicitudes, isLoading, modals, detalles, handlers } =
+  const { abuelitos, solicitudes, isLoading, modals, detalles, handlers, vincular, caidasActivas, confirmarCaida } =
     useAbuelitos();
   const location = useLocation();
   const navigate = useNavigate();
@@ -274,15 +274,47 @@ export default function MisAbuelitos() {
           {abuelitos.map((abuelito) => {
             const isPendiente = abuelito.estadoVinculacion === "Pendiente";
             const isOnline = abuelito.dispositivo?.estadoGeneral === "Online";
+            const caida = caidasActivas[abuelito.id];
+            const bateria = abuelito.dispositivo?.bateria ?? 0;
+            const cargando = abuelito.dispositivo?.cargando ?? false;
+            const bateriaBaja = bateria <= 20 && !cargando;
 
             return (
               <div
                 key={abuelito.id}
-                className={`bg-white rounded-3xl p-6 shadow-[0_8px_30px_-15px_rgba(0,0,0,0.06)] border flex flex-col justify-between relative overflow-hidden min-h-[220px] ${isPendiente ? "border-dashed border-gray-300 bg-gray-50/50" : "border-gray-50"}`}
+                className={`bg-white rounded-3xl p-6 shadow-[0_8px_30px_-15px_rgba(0,0,0,0.06)] border flex flex-col justify-between relative overflow-hidden min-h-[220px] transition-all ${
+                  caida
+                    ? "border-2 border-red-500 ring-4 ring-red-200 animate-pulse"
+                    : isPendiente
+                      ? "border-dashed border-gray-300 bg-gray-50/50"
+                      : "border-gray-50"
+                }`}
               >
                 {/* Fondo Decorativo */}
-                {!isPendiente && (
+                {!isPendiente && !caida && (
                   <div className="absolute top-0 right-0 w-32 h-32 bg-[#F9F7F1] rounded-bl-full -z-0"></div>
+                )}
+
+                {/* --- BANNER DE CAÍDA ACTIVA --- */}
+                {caida && (
+                  <div className="relative z-10 -mt-2 -mx-2 mb-3 bg-red-600 text-white rounded-2xl px-4 py-3 shadow-lg">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-3 w-3 relative">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
+                      </span>
+                      <p className="text-xs font-black uppercase tracking-wide">
+                        ¡Caída detectada!
+                      </p>
+                    </div>
+                    <p className="text-[11px] mt-1 opacity-90">{caida.body}</p>
+                    <button
+                      onClick={() => confirmarCaida(caida.notificationLogId)}
+                      className="mt-2 w-full bg-white text-red-700 rounded-lg py-1.5 text-[11px] font-bold hover:bg-red-50 transition-colors"
+                    >
+                      Confirmar atención
+                    </button>
+                  </div>
                 )}
 
                 <div className="relative z-10 flex justify-between items-start">
@@ -321,54 +353,93 @@ export default function MisAbuelitos() {
                 {isPendiente ? (
                   /* VISTA: PENDIENTE DE VINCULACIÓN */
                   <div className="flex flex-col items-center justify-center flex-1 mt-4 relative z-10">
-                    <p className="text-xs text-gray-400 text-center mb-3">
-                      Pendiente a vinculación con el hardware
-                    </p>
-                    <button
-                      onClick={() =>
-                        handlers.abrirVincularHardware(abuelito.id)
-                      }
-                      className="flex items-center gap-2 bg-[#FDECA6] hover:bg-[#FCE07B] text-[#16333F] px-4 py-2 rounded-xl text-xs font-bold transition-colors w-full justify-center"
-                    >
-                      <LinkIcon /> Vincular Dispositivo
-                    </button>
+                    {abuelito.rol === "Principal" ? (
+                      <>
+                        <p className="text-xs text-gray-400 text-center mb-3">
+                          Pendiente a vinculación con el hardware
+                        </p>
+                        <button
+                          onClick={() =>
+                            handlers.abrirVincularHardware(abuelito.id)
+                          }
+                          className="flex items-center gap-2 bg-[#FDECA6] hover:bg-[#FCE07B] text-[#16333F] px-4 py-2 rounded-xl text-xs font-bold transition-colors w-full justify-center"
+                        >
+                          <LinkIcon /> Vincular Dispositivo
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-xs text-gray-400 text-center">
+                        Sin dispositivo vinculado. Solo el cuidador principal
+                        puede vincularlo.
+                      </p>
+                    )}
                   </div>
                 ) : (
                   /* VISTA: VINCULADO / ACTIVO */
                   <>
-                    <div className="flex justify-between items-end relative z-10 mt-4">
-                      <div>
-                        <p className="text-[10px] font-bold text-gray-400 mb-1">
-                          Estado del Paciente
-                        </p>
-                        <div className="flex items-center gap-1.5 text-sm font-bold text-[#16333F]">
-                          <CheckCircleIcon /> {abuelito.estadoActual}
-                        </div>
+                    {/* --- TELEMETRÍA DEL DISPOSITIVO (EN VIVO) --- */}
+                    <div className="relative z-10 mt-4 bg-[#F9F7F1] border border-gray-100 rounded-2xl p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                          <CpuIcon /> Dispositivo {abuelito.dispositivo?.id}
+                        </span>
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-gray-400">
+                          <span className="relative flex h-1.5 w-1.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
+                          </span>
+                          EN VIVO
+                        </span>
                       </div>
-                      <div className="text-right">
-                        <p className="text-[10px] font-bold text-gray-400 mb-1">
-                          Último Reporte
-                        </p>
-                        <p className="text-sm font-bold text-[#16333F]">
-                          {abuelito.ultimoReporte}
-                        </p>
+
+                      <div className="flex items-center justify-between">
+                        {/* Batería */}
+                        <div className="flex items-center gap-2">
+                          <BatteryIcon level={bateria} charging={cargando} />
+                          <div>
+                            <p className={`text-lg font-black leading-none ${bateriaBaja ? "text-red-500" : "text-[#16333F]"}`}>
+                              {bateria}%
+                            </p>
+                            <p className="text-[9px] text-gray-400 font-medium mt-0.5">
+                              {cargando ? "Cargando" : bateriaBaja ? "Batería baja" : "Batería"}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Barra de batería */}
+                        <div className="flex-1 mx-4">
+                          <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-700 ${
+                                cargando ? "bg-yellow-400" : bateriaBaja ? "bg-red-500" : "bg-green-500"
+                              }`}
+                              style={{ width: `${Math.max(0, Math.min(100, bateria))}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Conectividad */}
+                        <div className="text-right">
+                          <div className="flex items-center gap-1.5 justify-end">
+                            <span className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
+                            <span className="text-xs font-bold text-[#16333F]">
+                              {isOnline ? "Online" : "Offline"}
+                            </span>
+                          </div>
+                          <p className="text-[9px] text-gray-400 font-medium mt-0.5">
+                            {abuelito.ultimoReporte}
+                          </p>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-2 mt-5 relative z-10">
-                      {/* Fila 1 */}
-                      <button onClick={() => handlers.abrirDetallesPerfil(abuelito.id)} className="w-full border border-[#16333F] text-[#16333F] hover:bg-[#16333F] hover:text-white rounded-xl py-2 text-[11px] font-bold transition-colors">
+                    <div className="flex gap-2 mt-4 relative z-10">
+                      <button onClick={() => handlers.abrirDetallesPerfil(abuelito.id)} className="flex-1 border border-[#16333F] text-[#16333F] hover:bg-[#16333F] hover:text-white rounded-xl py-2 text-[11px] font-bold transition-colors">
                         Perfil
                       </button>
-                      {/* Fila 2 */}
-                      <div className="flex gap-2">
-                        <button onClick={() => handlers.abrirDetallesDispositivo(abuelito.id)} className="flex-1 flex items-center justify-center gap-1.5 bg-[#F9F7F1] border border-gray-200 text-[#16333F] hover:bg-gray-100 rounded-xl py-2 text-[11px] font-bold transition-colors">
-                          <CpuIcon /> Dispositivo
-                        </button>
-                        <button onClick={() => handlers.abrirBitacora(abuelito.id)} className="flex-1 flex items-center justify-center gap-1.5 border border-gray-200 text-[#16333F] hover:bg-gray-50 rounded-xl py-2 text-[11px] font-bold transition-colors">
-                          <NoteIcon /> Anotaciones
-                        </button>
-                      </div>
+                      <button onClick={() => handlers.abrirBitacora(abuelito.id)} className="flex-1 flex items-center justify-center gap-1.5 border border-gray-200 text-[#16333F] hover:bg-gray-50 rounded-xl py-2 text-[11px] font-bold transition-colors">
+                        <NoteIcon /> Anotaciones
+                      </button>
                     </div>
                   </>
                 )}
@@ -444,43 +515,64 @@ export default function MisAbuelitos() {
         </button>
       </Modal>
 
-      {/* --- NUEVO MODAL: Vincular Hardware --- */}
+      {/* --- MODAL: Vincular Hardware --- */}
       <Modal
         isOpen={modals.isVincularHardwareOpen}
         onClose={() => {
+          if (vincular.isLoading) return;
           modals.setIsVincularHardwareOpen(false);
           setCodigoHardware("");
+          vincular.clearError();
         }}
         title="Vincular Dispositivo"
       >
         <p className="text-sm text-gray-500 mb-5">
-          Ingresa el ID único impreso en la parte inferior del hardware asignado
-          a{" "}
+          Ingresa el <span className="font-bold text-[#16333F]">ID numérico</span> del
+          dispositivo (ej. <span className="font-mono">1001</span>) para vincularlo a{" "}
           <span className="font-bold text-[#16333F]">
             {detalles.abuelitoSeleccionado?.nombre}
-          </span>
-          .
+          </span>.
         </p>
-        <div className="relative mb-6">
+
+        <div className="relative mb-3">
           <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
             <CpuIcon />
           </div>
           <input
-            type="text"
-            placeholder="Ej. ESP32-A8F9"
+            type="number"
+            placeholder="Ej. 1001"
             value={codigoHardware}
-            onChange={(e) => setCodigoHardware(e.target.value.toUpperCase())}
-            className="w-full pl-10 pr-4 py-3 bg-[#F9F7F1] border border-gray-200 rounded-xl text-sm font-mono uppercase outline-none focus:border-[#16333F]"
+            onChange={(e) => {
+              setCodigoHardware(e.target.value);
+              vincular.clearError();
+            }}
+            disabled={vincular.isLoading}
+            className="w-full pl-10 pr-4 py-3 bg-[#F9F7F1] border border-gray-200 rounded-xl text-sm font-mono outline-none focus:border-[#16333F] disabled:opacity-50"
           />
         </div>
+
+        {vincular.error && (
+          <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-4">
+            {vincular.error}
+          </p>
+        )}
+
         <button
-          onClick={() => {
-            handlers.handleVincularHardwareSubmit(codigoHardware);
-            setCodigoHardware("");
+          onClick={async () => {
+            await handlers.handleVincularHardwareSubmit(codigoHardware);
+            if (!vincular.error) setCodigoHardware("");
           }}
-          className="w-full bg-[#3D5665] hover:bg-[#16333F] text-white py-3 rounded-xl font-bold transition-colors shadow-md"
+          disabled={vincular.isLoading || !codigoHardware.trim()}
+          className="w-full bg-[#3D5665] hover:bg-[#16333F] text-white py-3 rounded-xl font-bold transition-colors shadow-md disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
-          Vincular y Activar Monitoreo
+          {vincular.isLoading ? (
+            <>
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Vinculando...
+            </>
+          ) : (
+            "Vincular y Activar Monitoreo"
+          )}
         </button>
       </Modal>
 

@@ -1,8 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { Abuelito, SolicitudAcceso, RegistrarAbuelitoDTO } from '../models/abuelito.model';
 
 import { apiClient } from '../../../shared/api/client.ts'; 
 import { API_CONFIG } from '../../../shared/api/config.ts';
+import { useNotifications } from '../../notifications/hooks/useNotifications';
+
+const TELEMETRY_POLL_INTERVAL_MS = 10000;
+
+export interface CaidaActiva {
+  notificationLogId: number;
+  patientId: number;
+  title: string;
+  body: string;
+  createdAt: string;
+}
 
 interface BackendUser {
   firstName?: string;
@@ -23,6 +34,19 @@ interface BackendAnnotation {
   author?: string;
 }
 
+interface BackendDevice {
+  isLinked?: boolean;
+  deviceId?: number;
+  status?: string;
+  connectivityStatus?: string | null;
+  currentBatteryLevel?: number | null;
+  isCharging?: boolean | null;
+  lastHeartbeatAt?: string | null;
+  isOnline?: boolean;
+  isLowBattery?: boolean;
+  firmwareVersion?: string;
+}
+
 interface BackendPatient {
   patientId?: number;
   firstName?: string;
@@ -34,6 +58,7 @@ interface BackendPatient {
   medications?: Record<string, string>;
   caregivers?: BackendCaregiver[];
   annotations?: BackendAnnotation[];
+  device?: BackendDevice;
 }
 
 type BackendPatientResponse = BackendPatient & {
@@ -83,6 +108,22 @@ const calcularEdad = (fechaNacimiento: string): string => {
   return edad.toString();
 };
 
+const formatUltimoReporte = (fecha?: string | null): string => {
+  if (!fecha) return 'Sin reportes';
+  const date = new Date(fecha);
+  if (Number.isNaN(date.getTime())) return 'Sin reportes';
+
+  const diffMs = Date.now() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+
+  if (diffMin < 1) return 'Hace instantes';
+  if (diffMin < 60) return `Hace ${diffMin} min`;
+  const diffHoras = Math.floor(diffMin / 60);
+  if (diffHoras < 24) return `Hace ${diffHoras} h`;
+
+  return date.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+};
+
 const mapearAnotacionDesdeBackend = (a: BackendAnnotation) => ({
   id: a.id?.toString() || Math.random().toString(),
   fecha: a.date ? new Date(a.date).toLocaleDateString('es-ES', {
@@ -102,25 +143,28 @@ const mapearValoresDiccionario = (value?: Record<string, string> | null): string
 
 const mapearAbuelitoDesdeBackend = (dataBackend: BackendPatientResponse): Abuelito => {
   const patient = dataBackend.patient || dataBackend;
-  
-  // --- MOCK TEMPORAL DE DISPOSITIVO ---
-  // por ahora algunos datos siguen simulados
-  // hasta que integremos el Bounded Context de DeviceManagement.
-  const dispositivoSimulado = {
-    id: `ESP32-${patient.patientId || 'MOCK'}`,
-    bateria: 85,
-    cargando: false,
-    estadoGeneral: 'Online' as const
-  };
+
+  // Estado real del dispositivo expuesto por el backend (ACL Care -> DeviceManagment)
+  const device = patient.device;
+  const isLinked = device?.isLinked === true;
+
+  const dispositivo = isLinked
+    ? {
+        id: device?.deviceId ? `#${device.deviceId}` : 'N/D',
+        bateria: device?.currentBatteryLevel ?? 0,
+        cargando: device?.isCharging ?? false,
+        estadoGeneral: (device?.isOnline ? 'Online' : 'Offline') as 'Online' | 'Offline',
+      }
+    : undefined;
 
   return {
     id: patient.patientId?.toString() || '',
     nombre: `${patient.firstName || ''} ${patient.lastName || ''}`.trim(),
     rol: dataBackend.caregiverKind === 'official' ? 'Principal' : 'Invitado',
-    estadoActual: 'Seguro', 
-    ultimoReporte: 'Hace 5 min', // es simulado
-    estadoVinculacion: 'Vinculado', // por ahora Forzamos visualmente a 'Vinculado'
-    dispositivo: dispositivoSimulado, // Inyectamos el mock
+    estadoActual: 'Seguro',
+    ultimoReporte: isLinked ? formatUltimoReporte(device?.lastHeartbeatAt) : 'Sin dispositivo',
+    estadoVinculacion: isLinked ? 'Vinculado' : 'Pendiente',
+    dispositivo,
     dni: patient.dni || '',
     edad: calcularEdad(patient.birthDate || ''),
     grupoSanguineo: getBloodTypeString(patient.bloodType || 0),
@@ -155,15 +199,32 @@ export const useAbuelitos = () => {
   const [isAnotacionOpen, setIsAnotacionOpen] = useState(false);
   const [isBitacoraOpen, setIsBitacoraOpen] = useState(false);
 
+  // --- ESTADOS DE VINCULACIÓN HARDWARE ---
+  const [vincularIsLoading, setVincularIsLoading] = useState(false);
+  const [vincularError, setVincularError] = useState<string | null>(null);
+
   const [abuelitoSeleccionado, setAbuelitoSeleccionado] = useState<Abuelito | null>(null);
 
+  // --- NOTIFICACIONES EN TIEMPO REAL (SignalR) ---
+  const { notifications, acknowledge } = useNotifications();
+
   // --- REFRESCAR LISTA COMPLETA ---
+  // silent=true evita el spinner: se usa para el polling y refrescos por notificaciones.
   const recargarAbuelitos = async () => {
     const currentUserId = getUserIdFromToken();
     if (!currentUserId) return;
     try {
       const response = await apiClient.get<BackendPatientResponse[]>(API_CONFIG.PATIENTS.GET_BY_CAREGIVER(currentUserId));
-      setAbuelitos(response.map(mapearAbuelitoDesdeBackend));
+      const mapeados = response.map(mapearAbuelitoDesdeBackend);
+      // Preservamos las anotaciones que ya se hayan cargado de forma diferida.
+      setAbuelitos((prev) =>
+        mapeados.map((nuevo) => {
+          const anterior = prev.find((a) => a.id === nuevo.id);
+          return anterior?.anotaciones?.length
+            ? { ...nuevo, anotaciones: anterior.anotaciones }
+            : nuevo;
+        })
+      );
     } catch (error) {
       console.error('Error recargando abuelitos:', error);
     }
@@ -194,6 +255,54 @@ export const useAbuelitos = () => {
 
     fetchData();
   }, []);
+
+  // --- POLLING DE TELEMETRÍA EN TIEMPO REAL ---
+  // El backend solo emite notificaciones SignalR ante cambios de estado (batería baja,
+  // desconexión, caída), no en cada heartbeat. Para ver la batería subir/bajar de forma
+  // continua refrescamos la telemetría periódicamente (sin spinner).
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void recargarAbuelitos();
+    }, TELEMETRY_POLL_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // --- REFRESH INMEDIATO ANTE UN EVENTO EN TIEMPO REAL ---
+  // Cuando llega una notificación (caída, batería, conexión) refrescamos al instante
+  // para reflejar el nuevo estado del dispositivo sin esperar al siguiente poll.
+  const lastNotificationId = notifications[0]?.notificationLogId ?? 0;
+  useEffect(() => {
+    if (lastNotificationId > 0) {
+      void recargarAbuelitos();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastNotificationId]);
+
+  // --- CAÍDAS ACTIVAS (sin confirmar) POR PACIENTE ---
+  const caidasActivas = useMemo(() => {
+    const mapa: Record<string, CaidaActiva> = {};
+    notifications.forEach((n) => {
+      if (n.notificationType !== 'FallDetected' || n.acknowledgedAt || n.patientId == null) return;
+      const key = String(n.patientId);
+      const existente = mapa[key];
+      if (!existente || new Date(n.createdAt).getTime() > new Date(existente.createdAt).getTime()) {
+        mapa[key] = {
+          notificationLogId: n.notificationLogId,
+          patientId: n.patientId,
+          title: n.title,
+          body: n.body,
+          createdAt: n.createdAt,
+        };
+      }
+    });
+    return mapa;
+  }, [notifications]);
+
+  const confirmarCaida = async (notificationLogId: number) => {
+    await acknowledge(notificationLogId);
+  };
 
   // --- HANDLERS: GESTIÓN DE PERFILES ---
 
@@ -269,9 +378,36 @@ export const useAbuelitos = () => {
   };
 
   // --- HANDLERS: HARDWARE ---
-  const handleVincularHardwareSubmit = (codigoDispositivo: string) => {
-    console.log('API: Pendiente de integrar con BC DeviceManagement ID:', codigoDispositivo);
-    setIsVincularHardwareOpen(false);
+  const handleVincularHardwareSubmit = async (codigoDispositivo: string) => {
+    const abuelito = abuelitoSeleccionado;
+    if (!abuelito) return;
+
+    const deviceId = parseInt(codigoDispositivo.trim(), 10);
+    if (isNaN(deviceId) || deviceId <= 0) {
+      setVincularError('El ID del dispositivo debe ser un número válido (ej. 1001).');
+      return;
+    }
+
+    const patientId = parseInt(abuelito.id, 10);
+    if (isNaN(patientId) || patientId <= 0) {
+      setVincularError('No se pudo determinar el paciente. Intenta de nuevo.');
+      return;
+    }
+
+    setVincularIsLoading(true);
+    setVincularError(null);
+
+    try {
+      await apiClient.post(API_CONFIG.DEVICES.LINK(deviceId), { patientId });
+      setIsVincularHardwareOpen(false);
+      setVincularError(null);
+      await recargarAbuelitos();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Error al vincular el dispositivo.';
+      setVincularError(msg);
+    } finally {
+      setVincularIsLoading(false);
+    }
   };
 
   // --- HANDLERS: EQUIPO DE CUIDADO ---
@@ -330,7 +466,11 @@ export const useAbuelitos = () => {
 
   const abrirVincularHardware = (id: string) => {
     const abuelito = abuelitos.find(a => a.id === id);
-    if (abuelito) { setAbuelitoSeleccionado(abuelito); setIsVincularHardwareOpen(true); }
+    if (abuelito) {
+      setAbuelitoSeleccionado(abuelito);
+      setVincularError(null);
+      setIsVincularHardwareOpen(true);
+    }
   };
 
   const abrirAnotacion = (id: string) => {
@@ -366,6 +506,13 @@ export const useAbuelitos = () => {
     abuelitos,
     solicitudes,
     isLoading,
+    caidasActivas,
+    confirmarCaida,
+    vincular: {
+      isLoading: vincularIsLoading,
+      error: vincularError,
+      clearError: () => setVincularError(null),
+    },
     modals: {
       isVincularOpen, setIsVincularOpen,
       isRegistrarOpen, setIsRegistrarOpen,

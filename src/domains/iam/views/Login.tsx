@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import type { LoginCredentials } from '../models/user.model';
 // IMPORTAMOS TU LOGO REAL
@@ -7,7 +7,11 @@ import logo from '../../../assets/logo.svg';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, isLoading, error } = useAuth();
+
+  const redirectPath =
+    (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/';
   
   const [credentials, setCredentials] = useState<LoginCredentials>({
     email: '',
@@ -23,8 +27,7 @@ export default function Login() {
     e.preventDefault();
     try {
       await login(credentials);
-      // Redirigir al inicio después de login exitoso
-      navigate('/');
+      navigate(redirectPath, { replace: true });
     } catch (err) {
       console.error('Error en login:', err);
       // El error ya está en el estado del hook
