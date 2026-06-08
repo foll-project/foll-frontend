@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import { NotificationsProvider } from '../../../domains/notifications/context/NotificationsProvider';
+import FallAlertOverlay from '../../../domains/notifications/components/FallAlertOverlay';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 
@@ -17,6 +18,9 @@ export default function Layout() {
           </main>
         </div>
       </div>
+
+      {/* Alerta global de caída en tiempo real (visible en cualquier vista) */}
+      <FallAlertOverlay />
     </NotificationsProvider>
   );
 }

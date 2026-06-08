@@ -50,6 +50,13 @@ export default function Historial() {
               </tr>
             </thead>
             <tbody>
+              {eventos.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-12 text-center text-sm text-gray-400 font-medium">
+                    Aún no hay eventos de caídas registrados.
+                  </td>
+                </tr>
+              )}
               {eventos.map((evento) => (
                 <tr
                   key={evento.id}
@@ -92,7 +99,10 @@ export default function Historial() {
             <div className="grid grid-cols-3 gap-4 mb-6">
               <div>
                 <p className="text-[10px] font-bold text-gray-400 mb-1">Paciente</p>
-                <p className="text-base font-bold text-[#16333F]">{ev.paciente.split(' ')[0]} {ev.paciente.split(' ')[1].charAt(0)}.</p>
+                <p className="text-base font-bold text-[#16333F]">
+                  {ev.paciente.split(' ')[0]}
+                  {ev.paciente.split(' ')[1] ? ` ${ev.paciente.split(' ')[1].charAt(0)}.` : ''}
+                </p>
               </div>
               <div>
                 <p className="text-[10px] font-bold text-gray-400 mb-1">Tiempo de Respuesta</p>

@@ -43,6 +43,13 @@ export const API_CONFIG = {
     GET_BY_CAREGIVER: (caregiverUserId: number) => `/api/care/patients/by-caregiver/${caregiverUserId}`,
   },
 
+  DEVICES: {
+    LINK: (deviceId: number) => `/api/devices/${deviceId}/link`,
+    UNLINK: (deviceId: number) => `/api/devices/${deviceId}/link`,
+    STATUS: (deviceId: number) => `/api/devices/${deviceId}/status`,
+    BY_PATIENT: (patientId: number) => `/api/devices/patient/${patientId}`,
+  },
+
   NOTIFICATIONS: {
     LIST: '/api/notifications',
     GET_ONE: (id: number) => `/api/notifications/${id}`,

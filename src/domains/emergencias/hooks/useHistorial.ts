@@ -1,49 +1,128 @@
-import { useState, useEffect } from 'react';
-import type { EventoCaida } from '../models/evento.model';
+import { useState, useEffect, useMemo } from 'react';
+import type { EventoCaida, TipoEvento } from '../models/evento.model';
+import type { Notification } from '../../notifications/models/notification.model';
+import { fetchMyPatients } from '../../iam/services/patientsApi';
+import { useNotifications } from '../../notifications/hooks/useNotifications';
+
+const FALL_TYPES = ['FallDetected'];
+const FALSE_POSITIVE_TYPES = ['FallCancelled', 'FallDismissed', 'FalsePositive'];
+
+interface ParsedFallData {
+  location?: string;
+  fallType?: string;
+}
+
+const parseFallData = (dataJson?: string | null): ParsedFallData => {
+  if (!dataJson) return {};
+
+  try {
+    const data = JSON.parse(dataJson);
+
+    let location: string | undefined;
+    if (typeof data.location === 'string') {
+      location = data.location;
+    } else if (typeof data.address === 'string') {
+      location = data.address;
+    } else if (data.latitude != null && data.longitude != null) {
+      location = `Lat ${data.latitude}, Lng ${data.longitude}`;
+    }
+
+    const fallType: string | undefined =
+      data.fallType || data.type || data.category || undefined;
+
+    return { location, fallType };
+  } catch {
+    return {};
+  }
+};
+
+const mapNotificationToEvento = (
+  notification: Notification,
+  patientNames: Record<number, string>
+): EventoCaida => {
+  const date = new Date(notification.createdAt);
+  const validDate = !Number.isNaN(date.getTime());
+  const tipo: TipoEvento = FALSE_POSITIVE_TYPES.includes(notification.notificationType)
+    ? 'Falso Positivo'
+    : 'Emergencia Real';
+
+  const parsed = parseFallData(notification.dataJson);
+
+  const paciente =
+    notification.patientId != null && patientNames[notification.patientId]
+      ? patientNames[notification.patientId]
+      : notification.patientId != null
+        ? `Paciente #${notification.patientId}`
+        : 'Paciente desconocido';
+
+  return {
+    id: String(notification.notificationLogId),
+    ref: `#EVT-${notification.notificationLogId}`,
+    fecha: validDate
+      ? date.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' })
+      : '--',
+    hora: validDate
+      ? date.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
+      : '--',
+    paciente,
+    tipo,
+    ubicacion: parsed.location || 'Ubicación no disponible',
+    observaciones: notification.body || '',
+    tipoCaida: parsed.fallType,
+  };
+};
 
 export const useHistorial = () => {
-  const [eventos, setEventos] = useState<EventoCaida[]>([]);
+  const { notifications } = useNotifications();
+  const [patientNames, setPatientNames] = useState<Record<number, string>>({});
   const [isLoading, setIsLoading] = useState(true);
-
-  // Estado para el evento seleccionado (panel derecho)
   const [eventoSeleccionado, setEventoSeleccionado] = useState<EventoCaida | null>(null);
 
   useEffect(() => {
-    const fetchEventos = async () => {
+    let active = true;
+
+    const cargarPacientes = async () => {
       setIsLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 600)); // Simulación API Gateway
+      try {
+        const pacientes = await fetchMyPatients();
+        if (!active) return;
 
-      const mockData: EventoCaida[] = [
-        {
-          id: '1', ref: '#EVT-84729', fecha: '12 Oct 2026', hora: '14:30 hrs',
-          paciente: 'Rosa Martínez', tipo: 'Emergencia Real', tiempoRespuesta: '2m 14s',
-          ubicacion: 'Sala de estar, Residencia Principal',
-          tipoCaida: 'Mecánica',
-          observaciones: 'Perdió el equilibrio al intentar levantarse del sillón. No se hubo contusiones severas.El médico recomendó revisar su presión arterial en la próxima visita.',
-          anotacionesPaciente: [
-            { id: 'a1', fecha: '11 Oct 2026, 09:00', texto: 'La abuelita se quejó de un dolor de cabeza fuerte en la mañana.', autor: 'María Gonzales' },
-            { id: 'a2', fecha: '09 Oct 2026, 18:30', texto: 'No quiso cenar, dijo sentirse mareada.', autor: 'Juan Silva' }
-          ]
-        },
-        {
-          id: '2', ref: '#EVT-84730', fecha: '10 Oct 2026', hora: '09:15 hrs',
-          paciente: 'Carlos Vega', tipo: 'Falso Positivo', ubicacion: 'Pasillo central',
-          observaciones: 'Movimiento brusco al agacharse a recoger un objeto. El sistema filtró correctamente tras 5 segundos de validación.'
-        },
-        {
-          id: '3', ref: '#EVT-84731', fecha: '01 Oct 2026', hora: '11:40 hrs',
-          paciente: 'Elena Torres', tipo: 'Falso Positivo', ubicacion: 'Jardín exterior',
-          observaciones: 'Sensor detectó anomalía menor en el patrón de marcha. Descartado automáticamente.'
-        }
-      ];
-
-      setEventos(mockData);
-      setEventoSeleccionado(mockData[0]); // Seleccionamos el primero por defecto
-      setIsLoading(false);
+        const mapa: Record<number, string> = {};
+        pacientes.forEach((paciente) => {
+          mapa[paciente.patientId] = paciente.fullName;
+        });
+        setPatientNames(mapa);
+      } catch (error) {
+        console.error('Error al cargar pacientes para el historial:', error);
+      } finally {
+        if (active) setIsLoading(false);
+      }
     };
 
-    fetchEventos();
+    cargarPacientes();
+    return () => {
+      active = false;
+    };
   }, []);
+
+  const eventos = useMemo<EventoCaida[]>(() => {
+    return notifications
+      .filter(
+        (n) =>
+          FALL_TYPES.includes(n.notificationType) ||
+          FALSE_POSITIVE_TYPES.includes(n.notificationType)
+      )
+      .map((n) => mapNotificationToEvento(n, patientNames))
+      .sort((a, b) => Number(b.id) - Number(a.id));
+  }, [notifications, patientNames]);
+
+  useEffect(() => {
+    setEventoSeleccionado((prev) => {
+      if (eventos.length === 0) return null;
+      if (prev && eventos.some((e) => e.id === prev.id)) return prev;
+      return eventos[0];
+    });
+  }, [eventos]);
 
   const seleccionarEvento = (evento: EventoCaida) => {
     setEventoSeleccionado(evento);
@@ -54,7 +133,7 @@ export const useHistorial = () => {
     isLoading,
     detalle: {
       eventoSeleccionado,
-      seleccionarEvento
-    }
+      seleccionarEvento,
+    },
   };
 };

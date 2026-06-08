@@ -78,9 +78,8 @@ export default function Register() {
       };
 
       await registerUser(data);
-      
-      // Redirigir al inicio después de registro exitoso
-      navigate('/');
+
+      navigate('/login');
     } catch (err) {
       console.error('Error en registro:', err);
       // El error ya está en el estado del hook
