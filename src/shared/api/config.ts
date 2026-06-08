@@ -43,6 +43,15 @@ export const API_CONFIG = {
     GET_BY_CAREGIVER: (caregiverUserId: number) => `/api/care/patients/by-caregiver/${caregiverUserId}`,
   },
 
+  // Endpoints de Invitaciones (Care)
+  INVITATIONS: {
+    RECEIVED: '/api/care/invitations/received',
+    SENT: '/api/care/invitations/sent',
+    ACCEPT: (id: number) => `/api/care/invitations/${id}/accept`,
+    REJECT: (id: number) => `/api/care/invitations/${id}/reject`,
+    CREATE: (dni: string) => `/api/care/patients/${dni}/invitations`,
+  },
+
   DEVICES: {
     LINK: (deviceId: number) => `/api/devices/${deviceId}/link`,
     UNLINK: (deviceId: number) => `/api/devices/${deviceId}/link`,

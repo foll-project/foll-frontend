@@ -6,6 +6,7 @@ import Register from './domains/iam/views/Register';
 import Inicio from './domains/emergencias/views/Inicio';
 import MisAbuelitos from './domains/iam/views/MisAbuelitos';
 import Historial from './domains/emergencias/views/Historial';
+import Invitaciones from './domains/invitations/views/Invitaciones';
 import Perfil from './domains/iam/views/Perfil';
 
 export default function App() {
@@ -22,6 +23,7 @@ export default function App() {
             <Route index element={<Inicio />} />
             <Route path="abuelitos" element={<MisAbuelitos />} />
             <Route path="historial" element={<Historial />} />
+            <Route path="invitaciones" element={<Invitaciones />} />
             <Route path="perfil" element={<Perfil />} />
           </Route>
         </Route>
