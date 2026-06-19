@@ -178,10 +178,22 @@ const NoteIcon = () => (
 );
 
 export default function MisAbuelitos() {
-  const { abuelitos, solicitudes, isLoading, modals, detalles, handlers, vincular, caidasActivas, confirmarCaida } =
+  const { abuelitos, solicitudes, isLoading, modals, detalles, handlers, vincular, caidasActivas, atenderCaida } =
     useAbuelitos();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Paciente cuya caída se está atendiendo (para feedback en el botón).
+  const [atendiendoId, setAtendiendoId] = useState<string | null>(null);
+
+  const handleAtender = async (patientId: number) => {
+    setAtendiendoId(String(patientId));
+    try {
+      await atenderCaida(patientId);
+    } finally {
+      setAtendiendoId(null);
+    }
+  };
 
   const [dniVincularFamiliar, setDniVincularFamiliar] = useState("");
   const [codigoHardware, setCodigoHardware] = useState("");
@@ -295,10 +307,18 @@ export default function MisAbuelitos() {
                     </div>
                     <p className="text-[11px] mt-1 opacity-90">{caida.body}</p>
                     <button
-                      onClick={() => confirmarCaida(caida.notificationLogId)}
-                      className="mt-2 w-full bg-white text-red-700 rounded-lg py-1.5 text-[11px] font-bold hover:bg-red-50 transition-colors"
+                      onClick={() => handleAtender(caida.patientId)}
+                      disabled={atendiendoId === abuelito.id}
+                      className="mt-2 w-full bg-white text-red-700 rounded-lg py-1.5 text-[11px] font-bold hover:bg-red-50 transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                     >
-                      Confirmar atención
+                      {atendiendoId === abuelito.id ? (
+                        <>
+                          <span className="w-3 h-3 border-2 border-red-300 border-t-red-700 rounded-full animate-spin" />
+                          Atendiendo...
+                        </>
+                      ) : (
+                        'Atender emergencia'
+                      )}
                     </button>
                   </div>
                 )}

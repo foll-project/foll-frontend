@@ -3,10 +3,13 @@ import type { ReactNode } from 'react';
 import type { HubConnection } from '@microsoft/signalr';
 import { notificationsApi } from '../services/notificationsApi';
 import { createNotificationHubConnection } from '../services/notificationHub';
+import type { DeviceTelemetryRealtime, IncidentResolvedRealtime } from '../services/notificationHub';
+import { incidentsApi } from '../../emergencias/services/incidentsApi';
+import { getCurrentUserId } from '../../../shared/api/session';
 import type { Notification } from '../models/notification.model';
 import { getActiveCriticalAlerts, getHighestPriorityActiveCriticalAlert, isCriticalNotification } from '../models/notification.model';
 import { NotificationsContext } from './NotificationsContext';
-import type { NotificationsContextValue } from './NotificationsContext';
+import type { NotificationsContextValue, ResolvedIncidentEvent } from './NotificationsContext';
 
 const sortByCreatedAtDesc = (items: Notification[]): Notification[] => {
   return [...items].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -19,11 +22,47 @@ const upsertNotificationFirst = (items: Notification[], notification: Notificati
   return [notification, ...withoutCurrent];
 };
 
+/**
+ * Marca localmente como "atendidas" todas las caídas (FallDetected) sin confirmar
+ * de un paciente. Se usa tanto cuando este usuario atiende como cuando otro cuidador
+ * lo hace y nos llega el evento incident.resolved.
+ */
+const acknowledgeFallsForPatient = (items: Notification[], patientId: number): Notification[] => {
+  const acknowledgedAt = new Date().toISOString();
+  return items.map((notification) =>
+    notification.notificationType === 'FallDetected' &&
+    notification.patientId === patientId &&
+    !notification.acknowledgedAt
+      ? { ...notification, acknowledgedAt, readAt: notification.readAt || acknowledgedAt }
+      : notification,
+  );
+};
+
 export const NotificationsProvider = ({ children }: { children: ReactNode }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [deviceTelemetry, setDeviceTelemetry] = useState<Record<number, DeviceTelemetryRealtime>>({});
+  const [lastResolvedIncident, setLastResolvedIncident] = useState<ResolvedIncidentEvent | null>(null);
   const connectionRef = useRef<HubConnection | null>(null);
+
+  const handleIncidentResolved = useCallback((event: IncidentResolvedRealtime) => {
+    // 1. Limpiamos al instante cualquier alerta de caída activa de ese paciente
+    //    (cierra overlays/banners para TODOS los cuidadores).
+    setNotifications((current) => acknowledgeFallsForPatient(current, event.patientId));
+
+    // 2. Publicamos el evento para el aviso global "quién atendió".
+    const currentUserId = getCurrentUserId();
+    setLastResolvedIncident({
+      ...event,
+      receivedAt: Date.now(),
+      resolvedByMe: event.closedByUserId != null && Number(event.closedByUserId) === currentUserId,
+    });
+  }, []);
+
+  const dismissResolvedIncident = useCallback(() => {
+    setLastResolvedIncident(null);
+  }, []);
 
   const refreshNotifications = useCallback(async () => {
     const token = localStorage.getItem('authToken');
@@ -73,8 +112,14 @@ export const NotificationsProvider = ({ children }: { children: ReactNode }) => 
         return;
       }
 
-      const connection = createNotificationHubConnection((notification) => {
-        setNotifications((current) => upsertNotificationFirst(current, notification));
+      const connection = createNotificationHubConnection({
+        onNotificationCreated: (notification) => {
+          setNotifications((current) => upsertNotificationFirst(current, notification));
+        },
+        onDeviceTelemetry: (telemetry) => {
+          setDeviceTelemetry((current) => ({ ...current, [telemetry.patientId]: telemetry }));
+        },
+        onIncidentResolved: handleIncidentResolved,
       });
 
       connectionRef.current = connection;
@@ -98,7 +143,7 @@ export const NotificationsProvider = ({ children }: { children: ReactNode }) => 
       isMounted = false;
       void stopConnection();
     };
-  }, [refreshNotifications, stopConnection]);
+  }, [refreshNotifications, stopConnection, handleIncidentResolved]);
 
   const markAsRead = useCallback(async (id: number) => {
     try {
@@ -130,9 +175,48 @@ export const NotificationsProvider = ({ children }: { children: ReactNode }) => 
     }
   }, []);
 
+  /**
+   * Cierra la caída activa de un paciente en el backend. Como varios cuidadores
+   * pueden intentar atender a la vez, tratamos 400/404 (incidente ya cerrado por
+   * otro) como éxito silencioso. En todos los casos limpiamos el estado local.
+   */
+  const closeActiveIncident = useCallback(
+    async (patientId: number, mode: 'resolve' | 'falsePositive') => {
+      try {
+        const incident = await incidentsApi.getActiveByPatient(patientId);
+        if (incident) {
+          if (mode === 'resolve') {
+            await incidentsApi.resolve(incident.incidentId);
+          } else {
+            await incidentsApi.markFalsePositive(incident.incidentId);
+          }
+        }
+      } catch (error) {
+        // Si otro cuidador ya lo cerró el backend responde error: lo ignoramos.
+        console.warn('No se pudo cerrar el incidente (posiblemente ya atendido por otro).', error);
+      } finally {
+        // Limpieza local inmediata para quien ejecuta la acción.
+        setNotifications((current) => acknowledgeFallsForPatient(current, patientId));
+      }
+    },
+    [],
+  );
+
+  const attendFall = useCallback(
+    (patientId: number) => closeActiveIncident(patientId, 'resolve'),
+    [closeActiveIncident],
+  );
+
+  const markFallAsFalseAlarm = useCallback(
+    (patientId: number) => closeActiveIncident(patientId, 'falsePositive'),
+    [closeActiveIncident],
+  );
+
   const logoutNotifications = useCallback(async () => {
     await stopConnection();
     setNotifications([]);
+    setDeviceTelemetry({});
+    setLastResolvedIncident(null);
   }, [stopConnection]);
 
   const unreadNotifications = useMemo(() => {
@@ -160,8 +244,13 @@ export const NotificationsProvider = ({ children }: { children: ReactNode }) => 
     activeCriticalAlert,
     isLoading,
     isConnected,
+    deviceTelemetry,
+    lastResolvedIncident,
+    dismissResolvedIncident,
     markAsRead,
     acknowledge,
+    attendFall,
+    markFallAsFalseAlarm,
     refreshNotifications,
     logoutNotifications,
   }), [
@@ -172,8 +261,13 @@ export const NotificationsProvider = ({ children }: { children: ReactNode }) => 
     activeCriticalAlert,
     isLoading,
     isConnected,
+    deviceTelemetry,
+    lastResolvedIncident,
+    dismissResolvedIncident,
     markAsRead,
     acknowledge,
+    attendFall,
+    markFallAsFalseAlarm,
     refreshNotifications,
     logoutNotifications,
   ]);

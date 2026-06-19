@@ -6,8 +6,6 @@ import { API_CONFIG } from '../../../shared/api/config.ts';
 import { useNotifications } from '../../notifications/hooks/useNotifications';
 import { useInvitations } from '../../invitations/hooks/useInvitations';
 
-const TELEMETRY_POLL_INTERVAL_MS = 10000;
-
 export interface CaidaActiva {
   notificationLogId: number;
   patientId: number;
@@ -206,8 +204,8 @@ export const useAbuelitos = () => {
 
   const [abuelitoSeleccionado, setAbuelitoSeleccionado] = useState<Abuelito | null>(null);
 
-  // --- NOTIFICACIONES EN TIEMPO REAL (SignalR) ---
-  const { notifications, acknowledge } = useNotifications();
+  // --- NOTIFICACIONES Y TELEMETRÍA EN TIEMPO REAL (SignalR) ---
+  const { notifications, attendFall, deviceTelemetry } = useNotifications();
 
   // --- INVITACIONES EN TIEMPO REAL ---
   // Si aprueban una invitación que envié, gano acceso a un nuevo abuelito:
@@ -262,18 +260,31 @@ export const useAbuelitos = () => {
     fetchData();
   }, []);
 
-  // --- POLLING DE TELEMETRÍA EN TIEMPO REAL ---
-  // El backend solo emite notificaciones SignalR ante cambios de estado (batería baja,
-  // desconexión, caída), no en cada heartbeat. Para ver la batería subir/bajar de forma
-  // continua refrescamos la telemetría periódicamente (sin spinner).
+  // --- TELEMETRÍA EN TIEMPO REAL (SignalR push, sin polling) ---
+  // El backend empuja un evento ligero "device.telemetry" en CADA heartbeat solo a
+  // los cuidadores del paciente. Fusionamos esa telemetría en el estado local para
+  // ver la batería y la conectividad subir/bajar en vivo, sin llamadas periódicas.
   useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      void recargarAbuelitos();
-    }, TELEMETRY_POLL_INTERVAL_MS);
+    if (Object.keys(deviceTelemetry).length === 0) return;
 
-    return () => window.clearInterval(intervalId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    setAbuelitos((prev) =>
+      prev.map((abuelito) => {
+        const telemetria = deviceTelemetry[Number(abuelito.id)];
+        if (!telemetria || !abuelito.dispositivo) return abuelito;
+
+        return {
+          ...abuelito,
+          ultimoReporte: formatUltimoReporte(telemetria.lastHeartbeatAt),
+          dispositivo: {
+            ...abuelito.dispositivo,
+            bateria: telemetria.batteryLevel,
+            cargando: telemetria.isCharging,
+            estadoGeneral: telemetria.isOnline ? 'Online' : 'Offline',
+          },
+        };
+      }),
+    );
+  }, [deviceTelemetry]);
 
   // --- REFRESH INMEDIATO ANTE UN EVENTO EN TIEMPO REAL ---
   // Cuando llega una notificación (caída, batería, conexión) refrescamos al instante
@@ -314,8 +325,10 @@ export const useAbuelitos = () => {
     return mapa;
   }, [notifications]);
 
-  const confirmarCaida = async (notificationLogId: number) => {
-    await acknowledge(notificationLogId);
+  // Atiende la caída activa de un paciente: cierra el incidente en el backend, lo
+  // que dispara el evento "incident.resolved" en tiempo real al resto de cuidadores.
+  const atenderCaida = async (patientId: number) => {
+    await attendFall(patientId);
   };
 
   // --- HANDLERS: GESTIÓN DE PERFILES ---
@@ -521,7 +534,7 @@ export const useAbuelitos = () => {
     solicitudes,
     isLoading,
     caidasActivas,
-    confirmarCaida,
+    atenderCaida,
     vincular: {
       isLoading: vincularIsLoading,
       error: vincularError,

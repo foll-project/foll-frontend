@@ -68,5 +68,14 @@ export const API_CONFIG = {
     PUSH_TOKENS: '/api/notifications/push-tokens',
     DELETE_PUSH_TOKEN: (id: number) => `/api/notifications/push-tokens/${id}`,
   },
-  
+
+  // Endpoints de Incidentes de Emergencia (EmergencyAnalytics)
+  EMERGENCY: {
+    ACTIVE_BY_PATIENT: (patientId: number) => `/api/emergency/incidents/active/patient/${patientId}`,
+    HISTORY_BY_PATIENT: (patientId: number) => `/api/emergency/incidents/history/patient/${patientId}`,
+    GET_ONE: (incidentId: number) => `/api/emergency/incidents/${incidentId}`,
+    RESOLVE: (incidentId: number) => `/api/emergency/incidents/${incidentId}/resolve`,
+    FALSE_POSITIVE: (incidentId: number) => `/api/emergency/incidents/${incidentId}/false-positive`,
+  },
+
 };
