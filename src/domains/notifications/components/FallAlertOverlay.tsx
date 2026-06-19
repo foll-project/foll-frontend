@@ -39,10 +39,11 @@ const formatTime = (createdAt: string): string => {
 };
 
 export default function FallAlertOverlay() {
-  const { notifications, acknowledge } = useNotifications();
+  const { notifications, attendFall, markFallAsFalseAlarm } = useNotifications();
   const navigate = useNavigate();
   const [patientNames, setPatientNames] = useState<Record<number, string>>({});
   const [dismissedIds, setDismissedIds] = useState<number[]>([]);
+  const [accion, setAccion] = useState<'atender' | 'falsa' | null>(null);
 
   // Caídas sin confirmar (más reciente primero)
   const activeFalls = useMemo<Notification[]>(() => {
@@ -91,8 +92,26 @@ export default function FallAlertOverlay() {
     : null;
   const hasLocation = fallData.latitude && fallData.longitude;
 
-  const handleConfirmar = async () => {
-    await acknowledge(currentFall.notificationLogId);
+  const isBusy = accion !== null;
+
+  const handleAtender = async () => {
+    if (currentFall.patientId == null || isBusy) return;
+    setAccion('atender');
+    try {
+      await attendFall(currentFall.patientId);
+    } finally {
+      setAccion(null);
+    }
+  };
+
+  const handleFalsaAlarma = async () => {
+    if (currentFall.patientId == null || isBusy) return;
+    setAccion('falsa');
+    try {
+      await markFallAsFalseAlarm(currentFall.patientId);
+    } finally {
+      setAccion(null);
+    }
   };
 
   const handleVerHistorial = () => {
@@ -167,19 +186,44 @@ export default function FallAlertOverlay() {
           </p>
 
           {/* Acciones */}
-          <div className="flex gap-3 pt-1">
+          <div className="space-y-3 pt-1">
             <button
-              onClick={handleVerHistorial}
-              className="flex-1 border border-[#16333F] text-[#16333F] hover:bg-[#16333F] hover:text-white rounded-xl py-3 text-sm font-bold transition-colors"
+              onClick={handleAtender}
+              disabled={isBusy || currentFall.patientId == null}
+              className="w-full bg-red-600 hover:bg-red-700 text-white rounded-xl py-3.5 text-sm font-bold transition-colors shadow-md disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              Ver historial
+              {accion === 'atender' ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                  Atendiendo...
+                </>
+              ) : (
+                'Voy en camino · Atender'
+              )}
             </button>
-            <button
-              onClick={handleConfirmar}
-              className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-xl py-3 text-sm font-bold transition-colors shadow-md"
-            >
-              Confirmar atención
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={handleVerHistorial}
+                disabled={isBusy}
+                className="flex-1 border border-[#16333F] text-[#16333F] hover:bg-[#16333F] hover:text-white rounded-xl py-2.5 text-xs font-bold transition-colors disabled:opacity-60"
+              >
+                Ver historial
+              </button>
+              <button
+                onClick={handleFalsaAlarma}
+                disabled={isBusy || currentFall.patientId == null}
+                className="flex-1 border border-gray-300 text-gray-500 hover:bg-gray-50 rounded-xl py-2.5 text-xs font-bold transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {accion === 'falsa' ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-gray-300 border-t-gray-500 rounded-full animate-spin" />
+                    Marcando...
+                  </>
+                ) : (
+                  'Falsa alarma'
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>

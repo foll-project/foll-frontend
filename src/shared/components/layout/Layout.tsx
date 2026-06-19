@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import { NotificationsProvider } from '../../../domains/notifications/context/NotificationsProvider';
 import FallAlertOverlay from '../../../domains/notifications/components/FallAlertOverlay';
+import IncidentResolvedToast from '../../../domains/notifications/components/IncidentResolvedToast';
 import { InvitationsProvider } from '../../../domains/invitations/context/InvitationsProvider';
 import InvitationToast from '../../../domains/invitations/components/InvitationToast';
 import Sidebar from './Sidebar';
@@ -24,6 +25,9 @@ export default function Layout() {
 
         {/* Alerta global de caída en tiempo real (visible en cualquier vista) */}
         <FallAlertOverlay />
+
+        {/* Aviso global en vivo de caída atendida / falsa alarma (quién se hizo cargo) */}
+        <IncidentResolvedToast />
 
         {/* Aviso global de invitaciones en tiempo real (creada / aceptada / rechazada) */}
         <InvitationToast />
