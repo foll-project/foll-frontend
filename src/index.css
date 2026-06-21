@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+/* --- RESET TOTAL PARA FOLL --- */
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* Evita que la pantalla principal haga scroll, el scroll irá dentro del Layout */
+  
+  /* Forzamos tus colores base y evitamos que el modo oscuro del navegador los cambie */
+  background-color: #FCF9F0; 
+  color: #16333F; 
+  color-scheme: light; 
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

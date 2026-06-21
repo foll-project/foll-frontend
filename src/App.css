@@ -1,0 +1,30 @@
+
+
+/* --- VARIABLES DE COLOR (Tu paleta exacta) --- */
+:root {
+  --primary: #375A6E;
+  --secondary: #89BAAF;
+  --success-light: #CAEFE2;
+  --accent-light: #F6F8A7;
+  --warning-light: #FFEA9A;
+  --warning: #E8BA62;
+  --background: #FFFCED;
+  --white: #FFFFFF;
+}
+
+html, body, #root {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* Evita scrolls no deseados */
+  background-color: #FCF9F0; /* Fondo base claro de tu app */
+  color: #16333F; /* Color de texto base (tu azul oscuro) */
+  color-scheme: light; /* Obliga al navegador a usar modo claro, arregla los textos blancos fantasma */
+}
+
+/* Opcional: Para suavizar las fuentes */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
