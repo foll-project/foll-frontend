@@ -1,11 +1,7 @@
 // Configuración de la API
 // Cambiar VITE_API_URL según tu entorno
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5237';
-
-if (!import.meta.env.VITE_API_URL) {
-  console.warn('VITE_API_URL no está definido. Usando http://localhost:5237 como fallback.');
-}
+const API_BASE_URL = '';
 
 export const API_CONFIG = {
   BASE_URL: API_BASE_URL,
