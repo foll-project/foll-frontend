@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAbuelitos } from "../hooks/useAbuelitos";
 import { Modal } from "../../../shared/components/modals/Modal";
+import { ConfirmModal } from "../../../shared/components/modals/ConfirmModal";
+import { PatientQrModal } from "../components/PatientQrModal";
 import type { RegistrarAbuelitoDTO, Abuelito } from "../models/abuelito.model";
 
 // Íconos SVG
@@ -185,6 +187,32 @@ export default function MisAbuelitos() {
 
   // Paciente cuya caída se está atendiendo (para feedback en el botón).
   const [atendiendoId, setAtendiendoId] = useState<string | null>(null);
+  const [qrModalAbuelito, setQrModalAbuelito] = useState<{id: string, name: string} | null>(null);
+
+  // --- CONFIRMACIONES GLOBALES DE ESTA VISTA ---
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    isDestructive?: boolean;
+    confirmText?: string;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
+
+  const abrirConfirmacion = (
+    title: string,
+    message: string,
+    onConfirm: () => void,
+    isDestructive = false,
+    confirmText = "Confirmar"
+  ) => {
+    setConfirmConfig({ isOpen: true, title, message, onConfirm, isDestructive, confirmText });
+  };
 
   const handleAtender = async (patientId: number) => {
     setAtendiendoId(String(patientId));
@@ -331,7 +359,13 @@ export default function MisAbuelitos() {
                       {abuelito.nombre}
                     </h3>
                     <span
-                      className={`inline-block mt-1 text-[10px] font-bold px-3 py-1 rounded-full ${abuelito.rol === "Principal" && !isPendiente ? "bg-[#FDF5D3] text-[#DCA646]" : "bg-gray-200 text-gray-500"}`}
+                      className={`inline-block mt-1 text-[10px] font-bold px-3 py-1 rounded-full ${
+                        abuelito.rol === "Principal Oficial" && !isPendiente 
+                          ? "bg-[#FDF5D3] text-[#DCA646]" 
+                          : abuelito.rol === "Principal Invitado" && !isPendiente
+                            ? "bg-sky-100 text-sky-800"
+                            : "bg-gray-200 text-gray-500"
+                      }`}
                     >
                       {abuelito.rol}
                     </span>
@@ -339,7 +373,11 @@ export default function MisAbuelitos() {
 
                   <div className="flex flex-col items-end gap-2">
                     {!isPendiente && (
-                      <button className="p-2 bg-white border border-gray-100 text-gray-400 hover:text-[#16333F] hover:bg-gray-50 rounded-lg transition-colors shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)]" title="Código QR">
+                      <button 
+                        onClick={() => setQrModalAbuelito({ id: abuelito.id, name: abuelito.nombre })}
+                        className="p-2 bg-white border border-gray-100 text-gray-400 hover:text-[#16333F] hover:bg-gray-50 rounded-lg transition-colors shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)]" 
+                        title="Código QR"
+                      >
                         <QRIcon />
                       </button>
                     )}
@@ -359,7 +397,7 @@ export default function MisAbuelitos() {
                 {isPendiente ? (
                   /* VISTA: PENDIENTE DE VINCULACIÓN */
                   <div className="flex flex-col items-center justify-center flex-1 mt-4 relative z-10">
-                    {abuelito.rol === "Principal" ? (
+                    {abuelito.rol === "Principal Oficial" || abuelito.rol === "Principal Invitado" ? (
                       <>
                         <p className="text-xs text-gray-400 text-center mb-3">
                           Pendiente a vinculación con el hardware
@@ -1011,9 +1049,9 @@ export default function MisAbuelitos() {
                   <div className="space-y-3">
                     {detalles.abuelitoSeleccionado.cuidadores.map(
                       (cuidador) => {
-                        const isMe = cuidador.email === "maria@foll.com"; // Simulación de tu email
+                        const isMe = cuidador.id === String(modals.currentUserId);
                         const iamPrincipal =
-                          detalles.abuelitoSeleccionado!.rol === "Principal";
+                          detalles.abuelitoSeleccionado!.rol === "Principal Oficial";
 
                         return (
                           <div
@@ -1022,7 +1060,13 @@ export default function MisAbuelitos() {
                           >
                             <div className="flex items-center gap-3">
                               <div
-                                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${cuidador.rol === "Principal" ? "bg-[#FDF5D3] text-[#DCA646]" : "bg-gray-200 text-gray-500"}`}
+                                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
+                                  cuidador.rol === "Principal Oficial" 
+                                    ? "bg-[#FDF5D3] text-[#DCA646]" 
+                                    : cuidador.rol === "Principal Invitado"
+                                      ? "bg-sky-100 text-sky-800"
+                                      : "bg-gray-200 text-gray-500"
+                                }`}
                               >
                                 {cuidador.nombre.charAt(0)}
                               </div>
@@ -1030,67 +1074,81 @@ export default function MisAbuelitos() {
                                 <p className="text-xs font-bold text-[#16333F]">
                                   {cuidador.nombre} {isMe && "(Tú)"}
                                 </p>
-                                <p className="text-[10px] text-gray-400">
-                                  {cuidador.rol}
-                                </p>
+                                
+                                {cuidador.rol === "Principal Oficial" && (
+                                  <span className="text-[10px] text-gray-400 font-medium">Principal Oficial</span>
+                                )}
+                                {cuidador.rol === "Principal Invitado" && (
+                                  <span className="text-[10px] font-medium inline-block mt-0.5 bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full">Cuidador Principal Invitado</span>
+                                )}
+                                {cuidador.rol === "Secundario" && (
+                                  <span className="text-[10px] font-medium inline-block mt-0.5 bg-gray-100 text-gray-800 px-2 py-0.5 rounded-full">Cuidador Secundario</span>
+                                )}
+
                               </div>
                             </div>
 
                             {/* ACCIONES PARA EL PRINCIPAL */}
-                            {iamPrincipal && !isMe && (
+                            {iamPrincipal && !isMe && cuidador.rol !== "Principal Oficial" && (
                               <div className="flex gap-1">
-                                {cuidador.rol === "Invitado" ? (
+                                {cuidador.rol === "Secundario" ? (
                                   <button
                                     title="Compartir Mando Principal"
                                     onClick={() => {
-                                      if (
-                                        window.confirm(
-                                          `¿Estás seguro de compartir el mando principal con ${cuidador.nombre}?`
-                                        )
-                                      ) {
-                                        handlers.handleCompartirMando(
-                                          detalles.abuelitoSeleccionado!.id,
-                                          cuidador.id
-                                        );
-                                      }
+                                      abrirConfirmacion(
+                                        "Compartir Mando",
+                                        `¿Estás seguro de compartir el mando principal con ${cuidador.nombre}?`,
+                                        () => {
+                                          handlers.handleCompartirMando(
+                                            detalles.abuelitoSeleccionado!.id,
+                                            cuidador.id
+                                          );
+                                        },
+                                        false,
+                                        "Compartir"
+                                      );
                                     }}
                                     className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                                   >
                                     <ShieldCheckIcon />
                                   </button>
-                                ) : (
+                                ) : cuidador.rol === "Principal Invitado" ? (
                                   <button
                                     title="Quitar Mando Principal"
                                     onClick={() => {
-                                      if (
-                                        window.confirm(
-                                          `¿Estás seguro de quitar el mando principal a ${cuidador.nombre}?`
-                                        )
-                                      ) {
-                                        handlers.handleQuitarMando(
-                                          detalles.abuelitoSeleccionado!.id,
-                                          cuidador.id
-                                        );
-                                      }
+                                      abrirConfirmacion(
+                                        "Quitar Mando",
+                                        `¿Estás seguro de quitar el mando principal a ${cuidador.nombre}?`,
+                                        () => {
+                                          handlers.handleQuitarMando(
+                                            detalles.abuelitoSeleccionado!.id,
+                                            cuidador.id
+                                          );
+                                        },
+                                        true,
+                                        "Quitar Mando"
+                                      );
                                     }}
                                     className="p-2 text-[#DCA646] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                   >
                                     <ShieldXIcon />
                                   </button>
-                                )}
+                                ) : null}
                                 <button
                                   title="Eliminar del Equipo"
                                   onClick={() => {
-                                    if (
-                                      window.confirm(
-                                        `¿Eliminar a ${cuidador.nombre} del equipo de cuidado?`,
-                                      )
-                                    ) {
-                                      handlers.handleEliminarCuidador(
-                                        detalles.abuelitoSeleccionado!.id,
-                                        cuidador.id,
-                                      );
-                                    }
+                                    abrirConfirmacion(
+                                      "Eliminar Cuidador",
+                                      `¿Eliminar a ${cuidador.nombre} del equipo de cuidado?`,
+                                      () => {
+                                        handlers.handleEliminarCuidador(
+                                          detalles.abuelitoSeleccionado!.id,
+                                          cuidador.id,
+                                        );
+                                      },
+                                      true,
+                                      "Eliminar"
+                                    );
                                   }}
                                   className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                 >
@@ -1100,7 +1158,7 @@ export default function MisAbuelitos() {
                             )}
 
                             {/* Badge para el principal (si no soy yo) */}
-                            {cuidador.rol === "Principal" && !iamPrincipal && (
+                            {cuidador.rol === "Principal Oficial" && !iamPrincipal && (
                               <span className="text-[#DCA646]">
                                 <ShieldCheckIcon />
                               </span>
@@ -1154,6 +1212,23 @@ export default function MisAbuelitos() {
           </div>
         )}
       </Modal>
+
+      <PatientQrModal
+        isOpen={qrModalAbuelito !== null}
+        onClose={() => setQrModalAbuelito(null)}
+        patientId={qrModalAbuelito?.id || ""}
+        patientName={qrModalAbuelito?.name || ""}
+      />
+
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        onClose={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        onConfirm={confirmConfig.onConfirm}
+        isDestructive={confirmConfig.isDestructive}
+        confirmText={confirmConfig.confirmText}
+      />
     </div>
   );
 }

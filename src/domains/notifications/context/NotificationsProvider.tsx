@@ -130,6 +130,7 @@ export const NotificationsProvider = ({ children }: { children: ReactNode }) => 
   const [isConnected, setIsConnected] = useState(false);
   const [deviceTelemetry, setDeviceTelemetry] = useState<Record<number, DeviceTelemetryRealtime>>({});
   const [lastResolvedIncident, setLastResolvedIncident] = useState<ResolvedIncidentEvent | null>(null);
+  const [connection, setConnection] = useState<HubConnection | null>(null);
   const connectionRef = useRef<HubConnection | null>(null);
 
   useEffect(() => {
@@ -186,16 +187,17 @@ export const NotificationsProvider = ({ children }: { children: ReactNode }) => 
   }, []);
 
   const stopConnection = useCallback(async () => {
-    const connection = connectionRef.current;
+    const conn = connectionRef.current;
     connectionRef.current = null;
+    setConnection(null);
     setIsConnected(false);
 
-    if (!connection) {
+    if (!conn) {
       return;
     }
 
     try {
-      await connection.stop();
+      await conn.stop();
     } catch (error) {
       console.warn('No se pudo detener SignalR de notificaciones.', error);
     }
@@ -234,6 +236,7 @@ export const NotificationsProvider = ({ children }: { children: ReactNode }) => 
         await connection.start();
         if (isMounted) {
           setIsConnected(true);
+          setConnection(connection);
         }
       } catch (error) {
         console.warn('No se pudo iniciar SignalR de notificaciones.', error);
@@ -352,6 +355,7 @@ export const NotificationsProvider = ({ children }: { children: ReactNode }) => 
     activeCriticalAlert,
     isLoading,
     isConnected,
+    connection,
     deviceTelemetry,
     lastResolvedIncident,
     dismissResolvedIncident,
@@ -369,6 +373,7 @@ export const NotificationsProvider = ({ children }: { children: ReactNode }) => 
     activeCriticalAlert,
     isLoading,
     isConnected,
+    connection,
     deviceTelemetry,
     lastResolvedIncident,
     dismissResolvedIncident,

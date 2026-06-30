@@ -1,8 +1,11 @@
+export type RolCuidador = 'Principal Oficial' | 'Principal Invitado' | 'Secundario';
+
 export interface Cuidador {
   id: string;
   nombre: string;
-  rol: 'Principal' | 'Invitado';
+  rol: RolCuidador;
   email: string;
+  tieneMandoCompartido?: boolean;
 }
 
 export interface DispositivoInfo {
@@ -15,7 +18,7 @@ export interface DispositivoInfo {
 export interface Abuelito {
   id: string;
   nombre: string;
-  rol: 'Principal' | 'Invitado'; // Tu rol respecto a este abuelito
+  rol: RolCuidador; // Tu rol respecto a este abuelito
   estadoActual: 'Seguro' | 'Alerta';
   ultimoReporte: string;
   estadoVinculacion: 'Vinculado' | 'Pendiente';

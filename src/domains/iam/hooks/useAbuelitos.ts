@@ -58,6 +58,7 @@ interface BackendPatient {
   caregivers?: BackendCaregiver[];
   annotations?: BackendAnnotation[];
   device?: BackendDevice;
+  currentGuardianUserId?: number;
 }
 
 type BackendPatientResponse = BackendPatient & {
@@ -140,7 +141,7 @@ const mapearValoresDiccionario = (value?: Record<string, string> | null): string
   return Object.values(value).filter((item) => item.trim().length > 0);
 };
 
-const mapearAbuelitoDesdeBackend = (dataBackend: BackendPatientResponse): Abuelito => {
+const mapearAbuelitoDesdeBackend = (dataBackend: BackendPatientResponse, currentUserId: number): Abuelito => {
   const patient = dataBackend.patient || dataBackend;
 
   // Estado real del dispositivo expuesto por el backend (ACL Care -> DeviceManagment)
@@ -159,7 +160,9 @@ const mapearAbuelitoDesdeBackend = (dataBackend: BackendPatientResponse): Abueli
   return {
     id: patient.patientId?.toString() || '',
     nombre: `${patient.firstName || ''} ${patient.lastName || ''}`.trim(),
-    rol: dataBackend.caregiverKind === 'official' ? 'Principal' : 'Invitado',
+    rol: dataBackend.caregiverKind === 'official' 
+          ? 'Principal Oficial' 
+          : (patient.currentGuardianUserId === currentUserId ? 'Principal Invitado' : 'Secundario'),
     estadoActual: 'Seguro',
     ultimoReporte: isLinked ? formatUltimoReporte(device?.lastHeartbeatAt) : 'Sin dispositivo',
     estadoVinculacion: isLinked ? 'Vinculado' : 'Pendiente',
@@ -174,8 +177,11 @@ const mapearAbuelitoDesdeBackend = (dataBackend: BackendPatientResponse): Abueli
     cuidadores: (patient.caregivers || []).map((c: BackendCaregiver) => ({
       id: c.userId?.toString() || '',
       nombre: c.user ? `${c.user.firstName || ''} ${c.user.lastName || ''}`.trim() : 'Desconocido',
-      rol: c.caregiverKind === 'official' ? 'Principal' : 'Invitado',
-      email: c.user?.email || ''
+      rol: c.caregiverKind === 'official' 
+            ? 'Principal Oficial' 
+            : (c.userId === patient.currentGuardianUserId ? 'Principal Invitado' : 'Secundario'),
+      email: c.user?.email || '',
+      tieneMandoCompartido: c.userId === patient.currentGuardianUserId
     })),
     
     anotaciones: (patient.annotations || []).map(mapearAnotacionDesdeBackend)
@@ -205,7 +211,7 @@ export const useAbuelitos = () => {
   const [abuelitoSeleccionado, setAbuelitoSeleccionado] = useState<Abuelito | null>(null);
 
   // --- NOTIFICACIONES Y TELEMETRÍA EN TIEMPO REAL (SignalR) ---
-  const { notifications, attendFall, deviceTelemetry } = useNotifications();
+  const { notifications, attendFall, deviceTelemetry, connection } = useNotifications();
 
   // --- INVITACIONES EN TIEMPO REAL ---
   // Si aprueban una invitación que envié, gano acceso a un nuevo abuelito:
@@ -219,7 +225,7 @@ export const useAbuelitos = () => {
     if (!currentUserId) return;
     try {
       const response = await apiClient.get<BackendPatientResponse[]>(API_CONFIG.PATIENTS.GET_BY_CAREGIVER(currentUserId));
-      const mapeados = response.map(mapearAbuelitoDesdeBackend);
+      const mapeados = response.map(r => mapearAbuelitoDesdeBackend(r, currentUserId));
       // Preservamos las anotaciones que ya se hayan cargado de forma diferida.
       setAbuelitos((prev) =>
         mapeados.map((nuevo) => {
@@ -246,7 +252,7 @@ export const useAbuelitos = () => {
         }
 
         const response = await apiClient.get<BackendPatientResponse[]>(API_CONFIG.PATIENTS.GET_BY_CAREGIVER(currentUserId));
-        setAbuelitos(response.map(mapearAbuelitoDesdeBackend));
+        setAbuelitos(response.map(r => mapearAbuelitoDesdeBackend(r, currentUserId)));
         setSolicitudes([]); // Lógica futura para invitaciones
 
       } catch (error) {
@@ -304,6 +310,52 @@ export const useAbuelitos = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastInvitationEvent]);
+
+  // --- SINCRONIZACIÓN DEL PACIENTE SELECCIONADO ---
+  // Al recargar la lista de abuelitos (ej. por cambiar un rol o eliminar un cuidador), 
+  // la copia estática de `abuelitoSeleccionado` en el modal no se actualizaba automáticamente. 
+  // Este useEffect mantiene en sincronía la vista del modal en vivo sin recargas.
+  useEffect(() => {
+    if (abuelitoSeleccionado) {
+      const actualizado = abuelitos.find(a => a.id === abuelitoSeleccionado.id);
+      if (actualizado) {
+        setAbuelitoSeleccionado(actualizado);
+      } else {
+        // Si el abuelito ya no existe (ej. lo eliminamos), cerramos el modal
+        setAbuelitoSeleccionado(null);
+        setIsDetallesOpen(false);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abuelitos]);
+
+  // --- REFRESH EQUIPO DE CUIDADO EN TIEMPO REAL ---
+  useEffect(() => {
+    if (!connection || !abuelitoSeleccionado) return;
+
+    const currentPatientId = Number(abuelitoSeleccionado.id);
+    
+    connection.invoke("JoinPatientGroup", currentPatientId).catch((err) => {
+      console.warn("No se pudo unir al grupo del paciente:", err);
+    });
+
+    const handleCaregiverUpdated = (updatedPatientId: number) => {
+      if (updatedPatientId === currentPatientId) {
+        void recargarAbuelitos();
+      }
+    };
+
+    connection.on("CaregiverListUpdated", handleCaregiverUpdated);
+    connection.on("CaregiverRoleChanged", handleCaregiverUpdated);
+
+    return () => {
+      connection.off("CaregiverListUpdated", handleCaregiverUpdated);
+      connection.off("CaregiverRoleChanged", handleCaregiverUpdated);
+      connection.invoke("LeavePatientGroup", currentPatientId).catch((err) => {
+        console.warn("No se pudo abandonar el grupo del paciente:", err);
+      });
+    };
+  }, [connection, abuelitoSeleccionado?.id]);
 
   // --- CAÍDAS ACTIVAS (sin confirmar) POR PACIENTE ---
   const caidasActivas = useMemo(() => {
@@ -396,12 +448,14 @@ export const useAbuelitos = () => {
     }
   };
 
-  const handleEliminar = (id: string) => {
-
-    // por ahora lo ocultamos visualmente de esta lista.
-    console.warn('API: Eliminación visual. El backend retiene el registro.');
-    setAbuelitos(prev => prev.filter(a => a.id !== id));
-    setIsDetallesOpen(false);
+  const handleEliminar = async (id: string) => {
+    try {
+      await apiClient.delete(API_CONFIG.PATIENTS.DELETE(Number(id)));
+      setAbuelitos(prev => prev.filter(a => a.id !== id));
+      setIsDetallesOpen(false);
+    } catch (error) {
+      console.error('Error eliminando paciente:', error);
+    }
   };
 
   // --- HANDLERS: HARDWARE ---
@@ -438,9 +492,13 @@ export const useAbuelitos = () => {
   };
 
   // --- HANDLERS: EQUIPO DE CUIDADO ---
-  const handleEliminarCuidador = (abuelitoId: string, cuidadorId: string) => {
-    console.warn('API: Acción de eliminar cuidador no expuesta aún en el REST controller.');
-    setAbuelitos(prev => prev.map(a => a.id === abuelitoId ? { ...a, cuidadores: a.cuidadores.filter(c => c.id !== cuidadorId) } : a));
+  const handleEliminarCuidador = async (abuelitoId: string, cuidadorId: string) => {
+    try {
+      await apiClient.delete(API_CONFIG.PATIENTS.REMOVE_CAREGIVER(Number(abuelitoId), Number(cuidadorId)));
+      await recargarAbuelitos();
+    } catch (error) {
+      console.error('Error eliminando cuidador:', error);
+    }
   };
 
   const handleCompartirMando = async (abuelitoId: string, cuidadorId: string) => {
@@ -541,6 +599,7 @@ export const useAbuelitos = () => {
       clearError: () => setVincularError(null),
     },
     modals: {
+      currentUserId: getUserIdFromToken(),
       isVincularOpen, setIsVincularOpen,
       isRegistrarOpen, setIsRegistrarOpen,
       isDetallesOpen, setIsDetallesOpen,

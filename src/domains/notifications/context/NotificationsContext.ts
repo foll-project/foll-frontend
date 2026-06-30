@@ -2,6 +2,7 @@ import { createContext } from 'react';
 import type { Notification } from '../models/notification.model';
 import type { ActiveCriticalAlert } from '../models/notification.model';
 import type { DeviceTelemetryRealtime, IncidentResolvedRealtime } from '../services/notificationHub';
+import type { HubConnection } from '@microsoft/signalr';
 
 export type ResolvedIncidentEvent = IncidentResolvedRealtime & {
   /** Marca temporal local para que el toast pueda re-disparar eventos repetidos. */
@@ -19,6 +20,7 @@ export interface NotificationsContextValue {
   activeCriticalAlert: ActiveCriticalAlert | null;
   isLoading: boolean;
   isConnected: boolean;
+  connection: HubConnection | null;
   /** Última telemetría por paciente, empujada por SignalR en cada heartbeat. */
   deviceTelemetry: Record<number, DeviceTelemetryRealtime>;
   /** Último evento de caída atendida (para el aviso global en vivo). */
