@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Abuelito, SolicitudAcceso, RegistrarAbuelitoDTO } from '../models/abuelito.model';
 
 import { apiClient } from '../../../shared/api/client.ts'; 
 import { API_CONFIG } from '../../../shared/api/config.ts';
+import i18n, { getDateLocale } from '../../../shared/i18n';
 import { useNotifications } from '../../notifications/hooks/useNotifications';
 import { useInvitations } from '../../invitations/hooks/useInvitations';
 
@@ -85,15 +87,21 @@ const getUserIdFromToken = (): number | null => {
 
 
 
+const BLOOD_TYPE_KEYS = ['unknown', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const;
+
 const getBloodTypeString = (type: number): string => {
-  const types = ['Desconocido', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-  return types[type] || 'Desconocido';
+  const key = BLOOD_TYPE_KEYS[type] ?? 'unknown';
+  return i18n.t(`bloodTypes.${key}`);
 };
 
 const getBloodTypeNumber = (typeString: string): number => {
-  const types = ['Desconocido', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-  const index = types.indexOf(typeString);
-  return index !== -1 ? index : 1; // Por defecto A+ si no coincide
+  const indexByKey = BLOOD_TYPE_KEYS.indexOf(typeString as (typeof BLOOD_TYPE_KEYS)[number]);
+  if (indexByKey !== -1) return indexByKey;
+
+  const indexByTranslation = BLOOD_TYPE_KEYS.findIndex(
+    (key) => i18n.t(`bloodTypes.${key}`) === typeString,
+  );
+  return indexByTranslation !== -1 ? indexByTranslation : 1;
 };
 
 const calcularEdad = (fechaNacimiento: string): string => {
@@ -109,19 +117,24 @@ const calcularEdad = (fechaNacimiento: string): string => {
 };
 
 const formatUltimoReporte = (fecha?: string | null): string => {
-  if (!fecha) return 'Sin reportes';
+  if (!fecha) return i18n.t('abuelitos.telemetry.noReports');
   const date = new Date(fecha);
-  if (Number.isNaN(date.getTime())) return 'Sin reportes';
+  if (Number.isNaN(date.getTime())) return i18n.t('abuelitos.telemetry.noReports');
 
   const diffMs = Date.now() - date.getTime();
   const diffMin = Math.floor(diffMs / 60000);
 
-  if (diffMin < 1) return 'Hace instantes';
-  if (diffMin < 60) return `Hace ${diffMin} min`;
+  if (diffMin < 1) return i18n.t('abuelitos.telemetry.justNow');
+  if (diffMin < 60) return i18n.t('abuelitos.telemetry.minutesAgo', { count: diffMin });
   const diffHoras = Math.floor(diffMin / 60);
-  if (diffHoras < 24) return `Hace ${diffHoras} h`;
+  if (diffHoras < 24) return i18n.t('abuelitos.telemetry.hoursAgo', { count: diffHoras });
 
-  return date.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleDateString(getDateLocale(), {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 };
 
 const mapearAnotacionDesdeBackend = (a: BackendAnnotation) => ({
@@ -150,7 +163,7 @@ const mapearAbuelitoDesdeBackend = (dataBackend: BackendPatientResponse, current
 
   const dispositivo = isLinked
     ? {
-        id: device?.deviceId ? `#${device.deviceId}` : 'N/D',
+        id: device?.deviceId ? `#${device.deviceId}` : i18n.t('common.notAvailable'),
         bateria: device?.currentBatteryLevel ?? 0,
         cargando: device?.isCharging ?? false,
         estadoGeneral: (device?.isOnline ? 'Online' : 'Offline') as 'Online' | 'Offline',
@@ -160,11 +173,15 @@ const mapearAbuelitoDesdeBackend = (dataBackend: BackendPatientResponse, current
   return {
     id: patient.patientId?.toString() || '',
     nombre: `${patient.firstName || ''} ${patient.lastName || ''}`.trim(),
-    rol: dataBackend.caregiverKind === 'official' 
-          ? 'Principal Oficial' 
-          : (patient.currentGuardianUserId === currentUserId ? 'Principal Invitado' : 'Secundario'),
+    rol: dataBackend.caregiverKind === 'official'
+          ? i18n.t('roles.principalOfficial')
+          : (patient.currentGuardianUserId === currentUserId
+              ? i18n.t('roles.principalGuest')
+              : i18n.t('roles.secondary')),
     estadoActual: 'Seguro',
-    ultimoReporte: isLinked ? formatUltimoReporte(device?.lastHeartbeatAt) : 'Sin dispositivo',
+    ultimoReporte: isLinked
+      ? formatUltimoReporte(device?.lastHeartbeatAt)
+      : i18n.t('abuelitos.telemetry.noDevice'),
     estadoVinculacion: isLinked ? 'Vinculado' : 'Pendiente',
     dispositivo,
     dni: patient.dni || '',
@@ -176,10 +193,14 @@ const mapearAbuelitoDesdeBackend = (dataBackend: BackendPatientResponse, current
     
     cuidadores: (patient.caregivers || []).map((c: BackendCaregiver) => ({
       id: c.userId?.toString() || '',
-      nombre: c.user ? `${c.user.firstName || ''} ${c.user.lastName || ''}`.trim() : 'Desconocido',
-      rol: c.caregiverKind === 'official' 
-            ? 'Principal Oficial' 
-            : (c.userId === patient.currentGuardianUserId ? 'Principal Invitado' : 'Secundario'),
+      nombre: c.user
+        ? `${c.user.firstName || ''} ${c.user.lastName || ''}`.trim()
+        : i18n.t('common.unknownCaregiver'),
+      rol: c.caregiverKind === 'official'
+            ? i18n.t('roles.principalOfficial')
+            : (c.userId === patient.currentGuardianUserId
+                ? i18n.t('roles.principalGuest')
+                : i18n.t('roles.secondary')),
       email: c.user?.email || '',
       tieneMandoCompartido: c.userId === patient.currentGuardianUserId
     })),
@@ -191,6 +212,7 @@ const mapearAbuelitoDesdeBackend = (dataBackend: BackendPatientResponse, current
 
 
 export const useAbuelitos = () => {
+  useTranslation();
   const [abuelitos, setAbuelitos] = useState<Abuelito[]>([]);
   const [solicitudes, setSolicitudes] = useState<SolicitudAcceso[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -264,6 +286,18 @@ export const useAbuelitos = () => {
     };
 
     fetchData();
+  }, []);
+
+  useEffect(() => {
+    const handleLanguageChanged = () => {
+      void recargarAbuelitos();
+    };
+
+    i18n.on('languageChanged', handleLanguageChanged);
+    return () => {
+      i18n.off('languageChanged', handleLanguageChanged);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // --- TELEMETRÍA EN TIEMPO REAL (SignalR push, sin polling) ---
@@ -426,7 +460,9 @@ export const useAbuelitos = () => {
       const enfermedadesFinales = datosActualizados.enfermedades || abuelitoOriginal.enfermedades || [];
       const medicamentosFinales = datosActualizados.medicamentos || abuelitoOriginal.medicamentos || [];
       const nombreFinal = datosActualizados.nombre || abuelitoOriginal.nombre || '';
-      const grupoSanguineoFinal = datosActualizados.grupoSanguineo || abuelitoOriginal.grupoSanguineo || 'Desconocido';
+      const grupoSanguineoFinal = datosActualizados.grupoSanguineo
+        || abuelitoOriginal.grupoSanguineo
+        || i18n.t('bloodTypes.unknown');
 
       const payloadBackend = {
         firstName: nombreFinal.split(' ')[0],
@@ -465,13 +501,13 @@ export const useAbuelitos = () => {
 
     const deviceId = parseInt(codigoDispositivo.trim(), 10);
     if (isNaN(deviceId) || deviceId <= 0) {
-      setVincularError('El ID del dispositivo debe ser un número válido (ej. 1001).');
+      setVincularError(i18n.t('errors.invalidDeviceId'));
       return;
     }
 
     const patientId = parseInt(abuelito.id, 10);
     if (isNaN(patientId) || patientId <= 0) {
-      setVincularError('No se pudo determinar el paciente. Intenta de nuevo.');
+      setVincularError(i18n.t('errors.patientNotDetermined'));
       return;
     }
 
@@ -484,7 +520,9 @@ export const useAbuelitos = () => {
       setVincularError(null);
       await recargarAbuelitos();
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Error al vincular el dispositivo.';
+      const msg = error instanceof Error
+        ? error.message
+        : i18n.t('errors.linkDeviceFailed');
       setVincularError(msg);
     } finally {
       setVincularIsLoading(false);

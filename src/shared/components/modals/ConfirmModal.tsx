@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Modal } from "./Modal";
 
 interface ConfirmModalProps {
@@ -17,10 +18,12 @@ export function ConfirmModal({
   title,
   message,
   onConfirm,
-  confirmText = "Confirmar",
-  cancelText = "Cancelar",
+  confirmText,
+  cancelText,
   isDestructive = false,
 }: ConfirmModalProps) {
+  const { t } = useTranslation();
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title}>
       <div className="flex flex-col space-y-6">
@@ -33,7 +36,7 @@ export function ConfirmModal({
             onClick={onClose}
             className="flex-1 bg-white border border-gray-300 text-gray-600 py-2.5 rounded-xl font-bold text-sm hover:bg-gray-50 transition-colors"
           >
-            {cancelText}
+            {cancelText ?? t("common.cancel")}
           </button>
           <button
             onClick={() => {
@@ -46,7 +49,7 @@ export function ConfirmModal({
                 : "bg-[#3D5665] hover:bg-[#16333F]"
             }`}
           >
-            {confirmText}
+            {confirmText ?? t("common.confirm")}
           </button>
         </div>
       </div>

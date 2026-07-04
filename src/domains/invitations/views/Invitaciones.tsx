@@ -1,18 +1,14 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useInvitations } from '../hooks/useInvitations';
 import type { Invitation, InvitationStatus } from '../models/invitation.model';
 
-const RELATIONSHIP_OPTIONS = [
-  { id: 1, label: 'Hijo(a)' },
-  { id: 2, label: 'Vecino(a)' },
-  { id: 3, label: 'Enfermero(a)' },
-  { id: 4, label: 'Familiar' },
-];
+const RELATIONSHIP_IDS = [1, 2, 3, 4] as const;
 
-const STATUS_BADGE: Record<InvitationStatus, { text: string; className: string }> = {
-  Pending: { text: 'Pendiente', className: 'bg-amber-100 text-amber-700' },
-  Accepted: { text: 'Aceptada', className: 'bg-emerald-100 text-emerald-700' },
-  Rejected: { text: 'Rechazada', className: 'bg-rose-100 text-rose-700' },
+const STATUS_BADGE: Record<InvitationStatus, { key: string; className: string }> = {
+  Pending: { key: 'status.pending', className: 'bg-amber-100 text-amber-700' },
+  Accepted: { key: 'status.accepted', className: 'bg-emerald-100 text-emerald-700' },
+  Rejected: { key: 'status.rejected', className: 'bg-rose-100 text-rose-700' },
 };
 
 const initials = (name: string): string => {
@@ -23,15 +19,17 @@ const initials = (name: string): string => {
 };
 
 function StatusBadge({ status }: { status: InvitationStatus }) {
+  const { t } = useTranslation();
   const badge = STATUS_BADGE[status] ?? STATUS_BADGE.Pending;
   return (
     <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide ${badge.className}`}>
-      {badge.text}
+      {t(badge.key)}
     </span>
   );
 }
 
 export default function Invitaciones() {
+  const { t } = useTranslation();
   const {
     received,
     sent,
@@ -46,7 +44,6 @@ export default function Invitaciones() {
   const [tab, setTab] = useState<'received' | 'sent'>('received');
   const [actionId, setActionId] = useState<number | null>(null);
 
-  // Formulario de solicitud
   const [dni, setDni] = useState('');
   const [relationshipTypeId, setRelationshipTypeId] = useState(4);
   const [formError, setFormError] = useState<string | null>(null);
@@ -81,18 +78,18 @@ export default function Invitaciones() {
 
     const cleanDni = dni.trim();
     if (cleanDni.length < 6) {
-      setFormError('Ingresa un DNI válido.');
+      setFormError(t('invitaciones.invalidDni'));
       return;
     }
 
     setCreating(true);
     try {
       await createInvitation(cleanDni, relationshipTypeId);
-      setFormSuccess('Solicitud enviada. El cuidador principal recibirá tu invitación en tiempo real.');
+      setFormSuccess(t('invitaciones.requestSentSuccess'));
       setDni('');
       setTab('sent');
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'No se pudo enviar la solicitud.';
+      const msg = error instanceof Error ? error.message : t('invitaciones.requestSendError');
       setFormError(msg);
     } finally {
       setCreating(false);
@@ -101,13 +98,10 @@ export default function Invitaciones() {
 
   return (
     <div className="max-w-5xl mx-auto">
-      {/* Encabezado */}
       <div className="flex items-start justify-between flex-wrap gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-[#16333F]">Invitaciones</h1>
-          <p className="text-gray-500 mt-1">
-            Gestiona las solicitudes de acceso a tus abuelitos y el estado de las que enviaste.
-          </p>
+          <h1 className="text-3xl font-bold text-[#16333F]">{t('invitaciones.title')}</h1>
+          <p className="text-gray-500 mt-1">{t('invitaciones.subtitle')}</p>
         </div>
         <span
           className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold ${
@@ -115,36 +109,33 @@ export default function Invitaciones() {
           }`}
         >
           <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`} />
-          {isConnected ? 'En tiempo real' : 'Desconectado'}
+          {isConnected ? t('invitaciones.realtime') : t('invitaciones.disconnected')}
         </span>
       </div>
 
-      {/* Formulario de solicitud */}
       <div className="bg-[#FCF9F0] border border-[#16333F]/10 rounded-2xl p-6 mb-8">
-        <h2 className="text-lg font-bold text-[#16333F] mb-1">Solicitar acceso a un abuelito</h2>
-        <p className="text-sm text-gray-500 mb-4">
-          Ingresa el DNI del abuelito. Su cuidador principal deberá aprobar tu solicitud.
-        </p>
+        <h2 className="text-lg font-bold text-[#16333F] mb-1">{t('invitaciones.requestAccessTitle')}</h2>
+        <p className="text-sm text-gray-500 mb-4">{t('invitaciones.requestAccessDescription')}</p>
         <form onSubmit={handleCreate} className="flex flex-wrap items-end gap-4">
           <div className="flex-1 min-w-[180px]">
-            <label className="block text-xs font-semibold text-gray-500 mb-1">DNI del abuelito</label>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">{t('invitaciones.elderDni')}</label>
             <input
               type="text"
               value={dni}
               onChange={(e) => setDni(e.target.value)}
-              placeholder="Ej. 70123456"
+              placeholder={t('invitaciones.dniPlaceholder')}
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-[#16333F] focus:outline-none focus:ring-2 focus:ring-[#16333F]/10 transition"
             />
           </div>
           <div className="min-w-[160px]">
-            <label className="block text-xs font-semibold text-gray-500 mb-1">Relación</label>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">{t('invitaciones.relationship')}</label>
             <select
               value={relationshipTypeId}
               onChange={(e) => setRelationshipTypeId(Number(e.target.value))}
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-[#16333F] focus:outline-none focus:ring-2 focus:ring-[#16333F]/10 transition bg-white"
             >
-              {RELATIONSHIP_OPTIONS.map((opt) => (
-                <option key={opt.id} value={opt.id}>{opt.label}</option>
+              {RELATIONSHIP_IDS.map((id) => (
+                <option key={id} value={id}>{t(`relationships.${id}`)}</option>
               ))}
             </select>
           </div>
@@ -153,14 +144,13 @@ export default function Invitaciones() {
             disabled={creating}
             className="px-6 py-2.5 rounded-xl bg-[#16333F] text-white font-semibold hover:bg-[#0f2630] transition disabled:opacity-60"
           >
-            {creating ? 'Enviando...' : 'Enviar solicitud'}
+            {creating ? t('common.sending') : t('invitaciones.sendRequest')}
           </button>
         </form>
         {formError && <p className="text-sm text-rose-600 mt-3">{formError}</p>}
         {formSuccess && <p className="text-sm text-emerald-600 mt-3">{formSuccess}</p>}
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-2 mb-6 border-b border-gray-100">
         <button
           type="button"
@@ -169,7 +159,7 @@ export default function Invitaciones() {
             tab === 'received' ? 'text-[#16333F]' : 'text-gray-400 hover:text-gray-600'
           }`}
         >
-          Recibidas
+          {t('invitaciones.tabs.received')}
           {pendingReceivedCount > 0 && (
             <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500 text-white">
               {pendingReceivedCount}
@@ -184,7 +174,7 @@ export default function Invitaciones() {
             tab === 'sent' ? 'text-[#16333F]' : 'text-gray-400 hover:text-gray-600'
           }`}
         >
-          Enviadas
+          {t('invitaciones.tabs.sent')}
           {sent.length > 0 && (
             <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-200 text-gray-600">
               {sent.length}
@@ -195,7 +185,7 @@ export default function Invitaciones() {
       </div>
 
       {isLoading && received.length === 0 && sent.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">Cargando invitaciones...</div>
+        <div className="text-center py-16 text-gray-400">{t('invitaciones.loading')}</div>
       ) : tab === 'received' ? (
         <ReceivedTab
           pending={pendingReceived}
@@ -224,11 +214,13 @@ function ReceivedTab({
   onAccept: (id: number) => void;
   onReject: (id: number) => void;
 }) {
+  const { t } = useTranslation();
+
   if (pending.length === 0 && resolved.length === 0) {
     return (
       <EmptyState
-        title="No tienes invitaciones recibidas"
-        subtitle="Cuando alguien solicite acceso a un abuelito tuyo, aparecerá aquí en tiempo real."
+        title={t('invitaciones.emptyReceivedTitle')}
+        subtitle={t('invitaciones.emptyReceivedSubtitle')}
       />
     );
   }
@@ -247,12 +239,14 @@ function ReceivedTab({
               </div>
               <div className="flex-1 min-w-[200px]">
                 <p className="text-sm font-bold text-[#16333F]">
-                  {invitation.requesterName}{' '}
-                  <span className="font-normal text-gray-500">quiere cuidar a</span>{' '}
+                  {t('invitaciones.wantsToCareFor', { name: invitation.requesterName })}{' '}
                   {invitation.patientName}
                 </p>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  Relación: {invitation.relationshipName} · DNI {invitation.patientDni}
+                  {t('invitaciones.relationshipDni', {
+                    relationship: invitation.relationshipName,
+                    dni: invitation.patientDni,
+                  })}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -262,7 +256,7 @@ function ReceivedTab({
                   onClick={() => onReject(invitation.invitationId)}
                   className="px-4 py-2 rounded-xl text-sm font-semibold text-rose-600 border border-rose-200 hover:bg-rose-50 transition disabled:opacity-50"
                 >
-                  Rechazar
+                  {t('common.reject')}
                 </button>
                 <button
                   type="button"
@@ -270,7 +264,7 @@ function ReceivedTab({
                   onClick={() => onAccept(invitation.invitationId)}
                   className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition disabled:opacity-50"
                 >
-                  {actionId === invitation.invitationId ? '...' : 'Aprobar'}
+                  {actionId === invitation.invitationId ? t('common.ellipsis') : t('common.approve')}
                 </button>
               </div>
             </div>
@@ -280,7 +274,7 @@ function ReceivedTab({
 
       {resolved.length > 0 && (
         <div>
-          <h3 className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-3">Historial</h3>
+          <h3 className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-3">{t('common.history')}</h3>
           <div className="space-y-2">
             {resolved.map((invitation) => (
               <div
@@ -305,11 +299,13 @@ function ReceivedTab({
 }
 
 function SentTab({ invitations }: { invitations: Invitation[] }) {
+  const { t } = useTranslation();
+
   if (invitations.length === 0) {
     return (
       <EmptyState
-        title="No has enviado invitaciones"
-        subtitle="Usa el formulario de arriba para solicitar acceso a un abuelito por su DNI."
+        title={t('invitaciones.emptySentTitle')}
+        subtitle={t('invitaciones.emptySentSubtitle')}
       />
     );
   }
@@ -325,9 +321,9 @@ function SentTab({ invitations }: { invitations: Invitation[] }) {
             {initials(invitation.patientName)}
           </div>
           <div className="flex-1 min-w-[200px]">
-            <p className="text-sm font-bold text-[#16333F]">{invitation.patientName || 'Abuelito'}</p>
+            <p className="text-sm font-bold text-[#16333F]">{invitation.patientName || t('common.abuelitoFallback')}</p>
             <p className="text-xs text-gray-400 mt-0.5">
-              DNI {invitation.patientDni} · Solicitaste ser {invitation.relationshipName}
+              DNI {invitation.patientDni} · {t('invitaciones.requestedToBe', { relationship: invitation.relationshipName })}
             </p>
           </div>
           <StatusBadge status={invitation.status} />

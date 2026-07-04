@@ -1,16 +1,17 @@
 import { useEffect } from 'react';
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useInvitations } from '../hooks/useInvitations';
 import type { InvitationEventKind } from '../models/invitation.model';
 
 const AUTO_DISMISS_MS = 9000;
 
-const STYLES: Record<InvitationEventKind, { accent: string; ring: string; icon: ReactNode; label: string }> = {
+const STYLES: Record<InvitationEventKind, { accent: string; ring: string; icon: ReactNode; labelKey: string }> = {
   created: {
     accent: 'bg-amber-500',
     ring: 'border-amber-200',
-    label: 'Nueva solicitud',
+    labelKey: 'notifications.invitationToast.newRequest',
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M22 6l-10 7L2 6" />
@@ -21,7 +22,7 @@ const STYLES: Record<InvitationEventKind, { accent: string; ring: string; icon: 
   accepted: {
     accent: 'bg-emerald-500',
     ring: 'border-emerald-200',
-    label: 'Invitación aceptada',
+    labelKey: 'notifications.invitationToast.accepted',
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M20 6L9 17l-5-5" />
@@ -31,7 +32,7 @@ const STYLES: Record<InvitationEventKind, { accent: string; ring: string; icon: 
   rejected: {
     accent: 'bg-rose-500',
     ring: 'border-rose-200',
-    label: 'Invitación rechazada',
+    labelKey: 'notifications.invitationToast.rejected',
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M18 6L6 18M6 6l12 12" />
@@ -41,6 +42,7 @@ const STYLES: Record<InvitationEventKind, { accent: string; ring: string; icon: 
 };
 
 export default function InvitationToast() {
+  const { t } = useTranslation();
   const { lastEvent, dismissEvent } = useInvitations();
   const navigate = useNavigate();
 
@@ -64,7 +66,7 @@ export default function InvitationToast() {
               {style.icon}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">{style.label}</p>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">{t(style.labelKey)}</p>
               <h4 className="text-sm font-bold text-[#16333F] leading-snug">{lastEvent.title}</h4>
               <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">{lastEvent.message}</p>
             </div>
@@ -72,7 +74,7 @@ export default function InvitationToast() {
               type="button"
               onClick={dismissEvent}
               className="flex-shrink-0 text-gray-300 hover:text-gray-500 transition-colors"
-              aria-label="Cerrar"
+              aria-label={t('common.close')}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M18 6L6 18M6 6l12 12" />
@@ -86,7 +88,7 @@ export default function InvitationToast() {
               onClick={dismissEvent}
               className="px-3 py-1.5 text-xs font-semibold text-gray-500 hover:text-gray-700 transition-colors"
             >
-              Descartar
+              {t('common.discard')}
             </button>
             <button
               type="button"
@@ -96,7 +98,7 @@ export default function InvitationToast() {
               }}
               className="px-3 py-1.5 text-xs font-semibold text-white rounded-lg bg-[#16333F] hover:bg-[#0f2630] transition-colors"
             >
-              Ver invitaciones
+              {t('common.viewInvitations')}
             </button>
           </div>
         </div>

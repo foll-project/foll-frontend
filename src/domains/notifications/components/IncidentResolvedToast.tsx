@@ -1,15 +1,12 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNotifications } from '../hooks/useNotifications';
 import { fetchMyPatients } from '../../iam/services/patientsApi';
 
 const AUTO_DISMISS_MS = 7000;
 
-/**
- * Aviso global en vivo: cuando un cuidador atiende (o descarta) una caída, el
- * backend emite "incident.resolved" a TODOS los cuidadores del paciente. Este
- * toast informa de inmediato quién se hizo cargo, en cualquier vista.
- */
 export default function IncidentResolvedToast() {
+  const { t } = useTranslation();
   const { lastResolvedIncident, dismissResolvedIncident } = useNotifications();
   const [patientNames, setPatientNames] = useState<Record<number, string>>({});
 
@@ -47,23 +44,26 @@ export default function IncidentResolvedToast() {
     ev.patientId != null && patientNames[ev.patientId]
       ? patientNames[ev.patientId]
       : ev.patientId != null
-        ? `Paciente #${ev.patientId}`
-        : 'el paciente';
+        ? t('common.patientNumber', { id: ev.patientId })
+        : t('common.thePatient');
 
   const isFalseAlarm =
     ev.status === 'FalsePositive' || ev.status === 'Cancelled' || Boolean(ev.cancellationReason);
-  const who = ev.resolvedByMe ? 'Tú' : ev.closedByName?.trim() || 'Otro cuidador';
+  const who = ev.resolvedByMe ? t('common.you') : ev.closedByName?.trim() || t('common.otherCaregiver');
 
-  const label = isFalseAlarm ? 'Falsa alarma' : 'Caída atendida';
+  const label = isFalseAlarm
+    ? t('notifications.incidentResolved.falseAlarm')
+    : t('notifications.incidentResolved.fallAttended');
+
   let message: string;
   if (isFalseAlarm) {
     message = ev.resolvedByMe
-      ? `Marcaste la caída de ${patientName} como falsa alarma.`
-      : `${who} marcó la caída de ${patientName} como falsa alarma.`;
+      ? t('notifications.incidentResolved.markedFalseByMe', { name: patientName })
+      : t('notifications.incidentResolved.markedFalseByOther', { who, name: patientName });
   } else {
     message = ev.resolvedByMe
-      ? `Atendiste la caída de ${patientName}. El resto del equipo fue avisado.`
-      : `${who} está atendiendo la caída de ${patientName}.`;
+      ? t('notifications.incidentResolved.attendedByMe', { name: patientName })
+      : t('notifications.incidentResolved.attendedByOther', { who, name: patientName });
   }
 
   const accent = isFalseAlarm ? 'bg-amber-500' : 'bg-emerald-500';
@@ -94,14 +94,16 @@ export default function IncidentResolvedToast() {
               <p className="text-[11px] font-bold uppercase tracking-wide text-gray-400">{label}</p>
               <h4 className="text-sm font-bold text-[#16333F] leading-snug">{message}</h4>
               {!isFalseAlarm && ev.fallTypeName && (
-                <p className="text-xs text-gray-500 mt-0.5">Tipo de caída: {ev.fallTypeName}</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {t('notifications.incidentResolved.fallTypeLabel', { type: ev.fallTypeName })}
+                </p>
               )}
             </div>
             <button
               type="button"
               onClick={dismissResolvedIncident}
               className="flex-shrink-0 text-gray-300 hover:text-gray-500 transition-colors"
-              aria-label="Cerrar"
+              aria-label={t('common.close')}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M18 6L6 18M6 6l12 12" />

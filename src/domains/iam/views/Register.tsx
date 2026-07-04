@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Input } from '../../../shared/components/inputs/Input';
 import { Button } from '../../../shared/components/buttons/Button';
 import { useAuth } from '../hooks/useAuth';
@@ -15,6 +16,7 @@ const LockIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="non
 const ArrowRightIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14m-7-7l7 7-7 7"/></svg>;
 
 export default function Register() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { register: registerUser, isLoading, error } = useAuth();
 
@@ -40,31 +42,31 @@ export default function Register() {
 
     // Validaciones
     if (!formData.firstName.trim()) {
-      setValidationError('El nombre es requerido');
+      setValidationError(t('validation.firstNameRequired'));
       return;
     }
     if (!formData.lastName.trim()) {
-      setValidationError('El apellido es requerido');
+      setValidationError(t('validation.lastNameRequired'));
       return;
     }
     if (!formData.email.trim()) {
-      setValidationError('El email es requerido');
+      setValidationError(t('validation.emailRequired'));
       return;
     }
     if (!formData.phoneNumber.trim()) {
-      setValidationError('El número de teléfono es requerido');
+      setValidationError(t('validation.phoneRequired'));
       return;
     }
     if (!formData.password) {
-      setValidationError('La contraseña es requerida');
+      setValidationError(t('validation.passwordRequired'));
       return;
     }
     if (formData.password.length < 6) {
-      setValidationError('La contraseña debe tener al menos 6 caracteres');
+      setValidationError(t('validation.passwordMinLength'));
       return;
     }
     if (formData.password !== formData.confirmPassword) {
-      setValidationError('Las contraseñas no coinciden');
+      setValidationError(t('validation.passwordMismatch'));
       return;
     }
 
@@ -99,11 +101,11 @@ export default function Register() {
           <div className="relative z-10 flex flex-col items-center">
             {/* USAMOS TU LOGO REAL AQUÍ TAMBIÉN */}
             <div className="w-20 h-20 rounded-full border border-gray-400/50 flex items-center justify-center mb-5 bg-white/5 backdrop-blur-sm shadow-xl p-4">
-              <img src={logo} alt="Foll Logo" className="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]" />
+              <img src={logo} alt={t('brand.logoAlt')} className="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]" />
             </div>
-            <h1 className="text-4xl font-bold mb-3 tracking-wide drop-shadow-md">Foll</h1>
+            <h1 className="text-4xl font-bold mb-3 tracking-wide drop-shadow-md">{t('brand.name')}</h1>
             <p className="text-xs font-light text-gray-300 max-w-[200px] leading-relaxed">
-              Vigilancia Tranquila. Cuidado constante con tecnología empática.
+              {t('brand.tagline')}
             </p>
           </div>
         </div>
@@ -113,17 +115,17 @@ export default function Register() {
           
           <div className="flex border-b border-gray-300 mb-8 w-3/4 mx-auto text-sm">
             <Link to="/login" className="flex-1 pb-2 text-center font-medium text-gray-400 hover:text-gray-600 transition-colors">
-              Iniciar Sesión
+              {t('auth.loginTab')}
             </Link>
             <button className="flex-1 pb-2 text-center font-semibold text-[#16333F] border-b-2 border-[#16333F]">
-              Crear Cuenta
+              {t('auth.registerTab')}
             </button>
           </div>
 
           <div className="flex-1 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500 h-full overflow-hidden">
             <div className="mb-6">
-              <h2 className="text-2xl font-bold text-[#16333F] mb-1">Bienvenido</h2>
-              <p className="text-xs text-gray-500">Ingresa tus datos para crear tu cuenta.</p>
+              <h2 className="text-2xl font-bold text-[#16333F] mb-1">{t('auth.welcome')}</h2>
+              <p className="text-xs text-gray-500">{t('auth.registerSubtitle')}</p>
             </div>
 
             {/* Mostrar errores */}
@@ -138,71 +140,71 @@ export default function Register() {
             <form onSubmit={handleRegister} className="space-y-4.5 flex-1 overflow-y-auto pr-2">
               <div className="grid grid-cols-2 gap-4">
                 <Input
-                  label="Nombres"
+                  label={t('auth.firstName')}
                   name="firstName"
                   value={formData.firstName}
                   onChange={handleChange}
-                  placeholder="Ej. Juan"
+                  placeholder={t('auth.firstNamePlaceholder')}
                   icon={<UserIcon />}
                   disabled={isLoading}
                 />
                 <Input
-                  label="Apellidos"
+                  label={t('auth.lastName')}
                   name="lastName"
                   value={formData.lastName}
                   onChange={handleChange}
-                  placeholder="Ej. Pérez"
+                  placeholder={t('auth.lastNamePlaceholder')}
                   icon={<UserIcon />}
                   disabled={isLoading}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <Input
-                  label="Correo"
+                  label={t('auth.emailShort')}
                   name="email"
                   type="email"
                   value={formData.email}
                   onChange={handleChange}
-                  placeholder="juan@foll.com"
+                  placeholder={t('auth.emailExamplePlaceholder')}
                   icon={<MailIcon />}
                   disabled={isLoading}
                 />
                 <Input
-                  label="Celular"
+                  label={t('auth.phone')}
                   name="phoneNumber"
                   type="tel"
                   value={formData.phoneNumber}
                   onChange={handleChange}
-                  placeholder="912 345 678"
+                  placeholder={t('auth.phonePlaceholder')}
                   icon={<PhoneIcon />}
                   disabled={isLoading}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <Input
-                  label="Contraseña"
+                  label={t('auth.password')}
                   name="password"
                   type="password"
                   value={formData.password}
                   onChange={handleChange}
-                  placeholder="••••••••"
+                  placeholder={t('auth.passwordPlaceholder')}
                   icon={<LockIcon />}
                   disabled={isLoading}
                 />
                 <Input
-                  label="Confirmar Contraseña"
+                  label={t('auth.confirmPassword')}
                   name="confirmPassword"
                   type="password"
                   value={formData.confirmPassword}
                   onChange={handleChange}
-                  placeholder="••••••••"
+                  placeholder={t('auth.passwordPlaceholder')}
                   icon={<LockIcon />}
                   disabled={isLoading}
                 />
               </div>
               <div className="pt-5 pb-2">
                 <Button type="submit" isLoading={isLoading} icon={<ArrowRightIcon />}>
-                  Crear Cuenta
+                  {t('auth.registerButton')}
                 </Button>
               </div>
             </form>

@@ -9,6 +9,7 @@ import Historial from './domains/emergencias/views/Historial';
 import Reportes from './domains/emergencias/views/Reportes';
 import Invitaciones from './domains/invitations/views/Invitaciones';
 import Perfil from './domains/iam/views/Perfil';
+import Ayuda from './domains/support/views/Ayuda';
 
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
             <Route path="reportes" element={<Reportes />} />
             <Route path="invitaciones" element={<Invitaciones />} />
             <Route path="perfil" element={<Perfil />} />
+            <Route path="ayuda" element={<Ayuda />} />
           </Route>
         </Route>
 

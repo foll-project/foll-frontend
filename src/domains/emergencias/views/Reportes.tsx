@@ -1,28 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useReportes } from '../hooks/useReportes';
 import { useAbuelitos } from '../../iam/hooks/useAbuelitos';
+import { getDateLocale } from '../../../shared/i18n';
 
-const MESES = [
-  { value: 1, label: 'Enero' },
-  { value: 2, label: 'Febrero' },
-  { value: 3, label: 'Marzo' },
-  { value: 4, label: 'Abril' },
-  { value: 5, label: 'Mayo' },
-  { value: 6, label: 'Junio' },
-  { value: 7, label: 'Julio' },
-  { value: 8, label: 'Agosto' },
-  { value: 9, label: 'Septiembre' },
-  { value: 10, label: 'Octubre' },
-  { value: 11, label: 'Noviembre' },
-  { value: 12, label: 'Diciembre' },
-];
+const MONTH_VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
 
 const currentYear = new Date().getFullYear();
 const YEARS = [currentYear - 1, currentYear, currentYear + 1];
 
 export default function Reportes() {
+  const { t } = useTranslation();
   const { abuelitos, isLoading: isLoadingPacientes } = useAbuelitos();
   const { incidents, isLoading: isLoadingReportes, error, fetchMonthlyFalls } = useReportes();
 
@@ -31,7 +21,6 @@ export default function Reportes() {
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // Seleccionar automáticamente el primer paciente cuando cargan
   useEffect(() => {
     if (abuelitos.length > 0 && !selectedPatient) {
       setSelectedPatient(String(abuelitos[0].id));
@@ -44,36 +33,49 @@ export default function Reportes() {
     setHasSearched(true);
   };
 
+  const getMonthLabel = (month: number) => t(`months.${month}`);
+
+  const getStatusLabel = (status: string) => {
+    if (status === 'Open') return t('status.incidentOpen');
+    if (status === 'Resolved') return t('status.incidentResolved');
+    return t('status.incidentClosedFalseAlarm');
+  };
+
   const descargarPDF = () => {
     const paciente = abuelitos.find(a => String(a.id) === selectedPatient);
-    const nombrePaciente = paciente ? paciente.nombre : 'Paciente Desconocido';
-    const nombreMes = MESES.find(m => m.value === selectedMonth)?.label || '';
-    const fechaGeneracion = new Date().toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+    const nombrePaciente = paciente ? paciente.nombre : t('common.unknownPatient');
+    const nombreMes = getMonthLabel(selectedMonth);
+    const dateLocale = getDateLocale();
+    const fechaGeneracion = new Date().toLocaleString(dateLocale, { dateStyle: 'short', timeStyle: 'short' });
 
     const doc = new jsPDF();
-    
-    // Encabezado
+
     doc.setFontSize(18);
-    doc.text('Reporte Clínico de Caídas - FOLL', 14, 22);
-    
-    // Información general
+    doc.text(t('pdf.title'), 14, 22);
+
     doc.setFontSize(12);
-    doc.text(`Paciente: ${nombrePaciente}`, 14, 32);
-    doc.text(`Periodo: ${nombreMes} ${selectedYear}`, 14, 38);
-    doc.text(`Total de Caídas Registradas: ${incidents.length}`, 14, 44);
-    doc.text(`Reporte generado el: ${fechaGeneracion}`, 14, 50);
+    doc.text(t('pdf.patient', { name: nombrePaciente }), 14, 32);
+    doc.text(t('pdf.period', { month: nombreMes, year: selectedYear }), 14, 38);
+    doc.text(t('pdf.totalFalls', { count: incidents.length }), 14, 44);
+    doc.text(t('pdf.generatedAt', { date: fechaGeneracion }), 14, 50);
 
     if (incidents.length === 0) {
       doc.setFontSize(12);
-      doc.text('No hubo reportes de caídas registrados durante este mes.', 105, 70, { align: 'center' });
+      doc.text(t('pdf.noFallsInMonth'), 105, 70, { align: 'center' });
     } else {
-      // Preparar datos para autoTable
-      const tableColumn = ["Fecha y Hora", "Tipo de Caída", "Estado", "Ubicación (Lat, Lng)"];
+      const tableColumn = [
+        t('pdf.columns.dateTime'),
+        t('pdf.columns.fallType'),
+        t('pdf.columns.status'),
+        t('pdf.columns.location'),
+      ];
       const tableRows = incidents.map(inc => {
-        const fecha = new Date(inc.openedAt).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
-        const tipo = inc.fallType ? inc.fallType.name : 'Desconocido';
-        const estado = inc.status === 'Open' ? 'Abierto' : inc.status === 'Resolved' ? 'Resuelto' : 'Cerrado/Falsa Alarma';
-        const ubicacion = (inc.latitude && inc.longitude) ? `${inc.latitude.toFixed(4)}, ${inc.longitude.toFixed(4)}` : 'Sin GPS';
+        const fecha = new Date(inc.openedAt).toLocaleString(dateLocale, { dateStyle: 'short', timeStyle: 'short' });
+        const tipo = inc.fallType ? inc.fallType.name : t('common.unknown');
+        const estado = getStatusLabel(inc.status);
+        const ubicacion = (inc.latitude && inc.longitude)
+          ? `${inc.latitude.toFixed(4)}, ${inc.longitude.toFixed(4)}`
+          : t('pdf.noGps');
         return [fecha, tipo, estado, ubicacion];
       });
 
@@ -82,36 +84,35 @@ export default function Reportes() {
         body: tableRows,
         startY: 56,
         styles: { fontSize: 10, cellPadding: 3 },
-        headStyles: { fillColor: [22, 51, 63] }, // Color corporativo FOLL #16333F
+        headStyles: { fillColor: [22, 51, 63] },
       });
     }
 
-    // Guardar
-    doc.save(`reporte_caidas_${nombrePaciente.replace(/\s+/g, '_')}_${nombreMes}_${selectedYear}.pdf`);
+    doc.save(`${t('pdf.filenamePrefix')}_${nombrePaciente.replace(/\s+/g, '_')}_${nombreMes}_${selectedYear}.pdf`);
   };
 
   return (
     <div className="max-w-[1200px] mx-auto space-y-8 pb-10">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-bold text-[#16333F] mb-2">Reportes Clínicos</h1>
-          <p className="text-sm text-gray-500">Genera reportes mensuales de caídas para el personal médico.</p>
+          <h1 className="text-3xl font-bold text-[#16333F] mb-2">{t('reportes.title')}</h1>
+          <p className="text-sm text-gray-500">{t('reportes.subtitle')}</p>
         </div>
       </div>
 
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 items-end">
         <div className="flex-1 w-full">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Paciente</label>
-          <select 
+          <label className="block text-sm font-medium text-gray-700 mb-1">{t('reportes.patient')}</label>
+          <select
             value={selectedPatient}
             onChange={(e) => setSelectedPatient(e.target.value)}
             disabled={isLoadingPacientes}
             className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#16333F]/20"
           >
             {isLoadingPacientes ? (
-              <option>Cargando pacientes...</option>
+              <option>{t('common.loadingPatients')}</option>
             ) : abuelitos.length === 0 ? (
-              <option>No hay pacientes registrados</option>
+              <option>{t('common.noPatientsRegistered')}</option>
             ) : (
               abuelitos.map(a => (
                 <option key={a.id} value={a.id}>{a.nombre}</option>
@@ -121,21 +122,21 @@ export default function Reportes() {
         </div>
 
         <div className="w-full md:w-48">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Mes</label>
-          <select 
+          <label className="block text-sm font-medium text-gray-700 mb-1">{t('reportes.month')}</label>
+          <select
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(Number(e.target.value))}
             className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#16333F]/20"
           >
-            {MESES.map(m => (
-              <option key={m.value} value={m.value}>{m.label}</option>
+            {MONTH_VALUES.map(m => (
+              <option key={m} value={m}>{getMonthLabel(m)}</option>
             ))}
           </select>
         </div>
 
         <div className="w-full md:w-32">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Año</label>
-          <select 
+          <label className="block text-sm font-medium text-gray-700 mb-1">{t('reportes.year')}</label>
+          <select
             value={selectedYear}
             onChange={(e) => setSelectedYear(Number(e.target.value))}
             className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#16333F]/20"
@@ -151,7 +152,7 @@ export default function Reportes() {
           disabled={!selectedPatient || isLoadingReportes}
           className="w-full md:w-auto bg-[#16333F] text-white px-6 py-3 rounded-xl text-sm font-bold hover:bg-[#204959] transition-colors disabled:opacity-50 h-[46px]"
         >
-          {isLoadingReportes ? 'Cargando...' : 'Generar Vista Previa'}
+          {isLoadingReportes ? t('common.loading') : t('reportes.generatePreview')}
         </button>
       </div>
 
@@ -165,57 +166,63 @@ export default function Reportes() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
             <div>
-              <h2 className="text-lg font-bold text-[#16333F]">Vista Previa del Reporte</h2>
-              <p className="text-sm text-gray-500">Se encontraron {incidents.length} incidentes en este periodo.</p>
+              <h2 className="text-lg font-bold text-[#16333F]">{t('reportes.previewTitle')}</h2>
+              <p className="text-sm text-gray-500">{t('reportes.incidentsFound', { count: incidents.length })}</p>
             </div>
-              <button
-                onClick={descargarPDF}
-                className="bg-[#FDECA6] text-black px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-[#FCE07B] transition-colors shadow-sm flex items-center gap-2"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-                Descargar PDF
-              </button>
+            <button
+              onClick={descargarPDF}
+              className="bg-[#FDECA6] text-black px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-[#FCE07B] transition-colors shadow-sm flex items-center gap-2"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              {t('reportes.downloadPdf')}
+            </button>
           </div>
-          
+
           {incidents.length === 0 ? (
             <div className="p-12 text-center text-gray-500">
-              No se registraron caídas en este periodo.
+              {t('reportes.noFallsInPeriod')}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm text-gray-600">
                 <thead className="bg-gray-50/50 text-gray-700 font-medium">
                   <tr>
-                    <th className="px-6 py-4 border-b border-gray-100">Fecha y Hora</th>
-                    <th className="px-6 py-4 border-b border-gray-100">Tipo de Caída</th>
-                    <th className="px-6 py-4 border-b border-gray-100">Estado</th>
-                    <th className="px-6 py-4 border-b border-gray-100">Ubicación (Lat, Lng)</th>
+                    <th className="px-6 py-4 border-b border-gray-100">{t('reportes.columns.dateTime')}</th>
+                    <th className="px-6 py-4 border-b border-gray-100">{t('reportes.columns.fallType')}</th>
+                    <th className="px-6 py-4 border-b border-gray-100">{t('reportes.columns.status')}</th>
+                    <th className="px-6 py-4 border-b border-gray-100">{t('reportes.columns.location')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {incidents.map((inc) => (
                     <tr key={inc.incidentId} className="hover:bg-gray-50/30 transition-colors">
                       <td className="px-6 py-4">
-                        {new Date(inc.openedAt).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}
+                        {new Date(inc.openedAt).toLocaleString(getDateLocale(), { dateStyle: 'short', timeStyle: 'short' })}
                       </td>
                       <td className="px-6 py-4 font-medium text-gray-900">
-                        {inc.fallType ? inc.fallType.name : 'Desconocido'}
+                        {inc.fallType ? inc.fallType.name : t('common.unknown')}
                       </td>
                       <td className="px-6 py-4">
                         <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                          inc.status === 'Open' ? 'bg-red-100 text-red-700' : 
-                          inc.status === 'Resolved' ? 'bg-green-100 text-green-700' : 
+                          inc.status === 'Open' ? 'bg-red-100 text-red-700' :
+                          inc.status === 'Resolved' ? 'bg-green-100 text-green-700' :
                           'bg-gray-100 text-gray-700'
                         }`}>
-                          {inc.status === 'Open' ? 'Abierto' : inc.status === 'Resolved' ? 'Resuelto' : 'Falsa Alarma'}
+                          {inc.status === 'Open'
+                            ? t('status.incidentOpen')
+                            : inc.status === 'Resolved'
+                              ? t('status.incidentResolved')
+                              : t('status.incidentFalseAlarm')}
                         </span>
                       </td>
                       <td className="px-6 py-4 font-mono text-xs text-gray-500">
-                        {(inc.latitude && inc.longitude) ? `${inc.latitude.toFixed(4)}, ${inc.longitude.toFixed(4)}` : 'Sin datos GPS'}
+                        {(inc.latitude && inc.longitude)
+                          ? `${inc.latitude.toFixed(4)}, ${inc.longitude.toFixed(4)}`
+                          : t('common.noData')}
                       </td>
                     </tr>
                   ))}

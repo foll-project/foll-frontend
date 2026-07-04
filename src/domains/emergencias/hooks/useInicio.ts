@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { QuickAccessProfile } from '../../iam/models/user.model';
 import type { SecurityStats } from '../models/stats.model';
 import { fetchMyPatients } from '../../iam/services/patientsApi';
 import { useNotifications } from '../../notifications/hooks/useNotifications';
+import i18n, { getDateLocale } from '../../../shared/i18n';
 
 interface InicioData {
   profiles: QuickAccessProfile[];
@@ -13,6 +15,7 @@ const FALL_TYPES = ['FallDetected'];
 const FALSE_POSITIVE_TYPES = ['FallCancelled', 'FallDismissed', 'FalsePositive'];
 
 export const useInicio = () => {
+  useTranslation();
   const { notifications } = useNotifications();
   const [profiles, setProfiles] = useState<QuickAccessProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -30,7 +33,9 @@ export const useInicio = () => {
           pacientes.map((paciente) => ({
             id: String(paciente.patientId),
             name: paciente.fullName,
-            role: paciente.isPrincipal ? 'Cuidador Principal' : 'Cuidador Secundario',
+            role: paciente.isPrincipal
+              ? i18n.t('roles.primaryCaregiver')
+              : i18n.t('roles.secondaryCaregiver'),
           }))
         );
       } catch (error) {
@@ -54,14 +59,14 @@ export const useInicio = () => {
   const totalEvents = realFalls + falsePositives;
 
   const stats: SecurityStats = {
-    month: new Date().toLocaleDateString('es-PE', { month: 'long', year: 'numeric' }),
+    month: new Date().toLocaleDateString(getDateLocale(), { month: 'long', year: 'numeric' }),
     totalEvents,
     realFalls,
     falsePositives,
     summaryMessage:
       totalEvents === 0
-        ? 'Aún no se han registrado eventos de caídas. Todo se mantiene en calma.'
-        : `Se han registrado ${totalEvents} evento(s) este periodo, de los cuales ${realFalls} fueron caídas reales.`,
+        ? i18n.t('inicio.summaryEmpty')
+        : i18n.t('inicio.summaryWithEvents', { total: totalEvents, real: realFalls }),
   };
 
   const data: InicioData = { profiles, stats };
