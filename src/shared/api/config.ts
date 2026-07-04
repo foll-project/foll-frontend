@@ -1,7 +1,7 @@
 // Configuración de la API
 // Cambiar VITE_API_URL según tu entorno
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5237http://localhost:8080/api/monolito';
+const API_BASE_URL = 'http://localhost:5237http://localhost:8080/api/monolito';
 
 if (!import.meta.env.VITE_API_URL) {
   console.warn('VITE_API_URL no está definido. Usando http://localhost:5237 como fallback.');
