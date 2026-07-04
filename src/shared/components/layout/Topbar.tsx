@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNotifications } from '../../../domains/notifications/hooks/useNotifications';
 import type { Notification } from '../../../domains/notifications/models/notification.model';
 import { isCriticalNotification } from '../../../domains/notifications/models/notification.model';
 import { getStoredUser } from '../../api/session';
+import { getDateLocale } from '../../i18n/config';
 
 const BellIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>;
 const CheckIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>;
@@ -14,7 +16,7 @@ const formatNotificationTime = (createdAt: string) => {
     return '';
   }
 
-  return date.toLocaleString('es-PE', {
+  return date.toLocaleString(getDateLocale(), {
     day: '2-digit',
     month: 'short',
     hour: '2-digit',
@@ -31,6 +33,7 @@ const NotificationItem = ({
   onRead: (id: number) => Promise<void>;
   onAcknowledge: (id: number) => Promise<void>;
 }) => {
+  const { t } = useTranslation();
   const isUnread = !notification.readAt;
   const isCritical = isCriticalNotification(notification);
 
@@ -81,7 +84,7 @@ const NotificationItem = ({
                 }}
                 className="text-[10px] font-bold text-[#16333F] border border-[#16333F] px-2 py-1 rounded-lg hover:bg-[#16333F] hover:text-white transition-colors"
               >
-                Confirmar
+                {t('topbar.confirm')}
               </span>
             )}
           </div>
@@ -92,6 +95,7 @@ const NotificationItem = ({
 };
 
 export default function Topbar() {
+  const { t } = useTranslation();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const {
     notifications,
@@ -104,7 +108,7 @@ export default function Topbar() {
 
   const storedUser = getStoredUser();
   const user = {
-    name: storedUser?.firstName?.trim() || 'Cuidador',
+    name: storedUser?.firstName?.trim() || t('topbar.defaultCaregiver'),
     role: 'Cuidador Principal',
   };
 
@@ -112,8 +116,8 @@ export default function Topbar() {
   const systemStatus = {
     isSafe: !hasActiveCriticalAlert,
     message: hasActiveCriticalAlert
-      ? activeCriticalAlert?.notification.title || 'Alerta pendiente'
-      : 'Todo está tranquilo',
+      ? activeCriticalAlert?.notification.title || t('topbar.pendingAlert')
+      : t('topbar.allCalm'),
   };
 
   const latestNotifications = notifications.slice(0, 6);
@@ -122,7 +126,7 @@ export default function Topbar() {
     <header className="w-full px-12 py-8 flex justify-between items-center bg-[#FCF9F0]">
       <div>
         <h2 className="text-xl font-medium text-[#16333F]">
-          Hola, <span className="font-bold">{user.name}</span>
+          {t('topbar.greeting')} <span className="font-bold">{user.name}</span>
         </h2>
       </div>
 
@@ -142,7 +146,7 @@ export default function Topbar() {
             type="button"
             onClick={() => setIsDropdownOpen((current) => !current)}
             className="hover:text-[#16333F] transition-colors relative text-gray-500 bg-white border border-gray-100 rounded-xl w-10 h-10 flex items-center justify-center shadow-sm"
-            title="Notificaciones"
+            title={t('topbar.notifications')}
           >
             <BellIcon />
             {unreadCount > 0 && (
@@ -156,14 +160,16 @@ export default function Topbar() {
             <div className="absolute right-0 top-12 w-[360px] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50">
               <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-[#16333F]">Notificaciones</h3>
+                  <h3 className="text-sm font-bold text-[#16333F]">{t('topbar.notificationsTitle')}</h3>
                   <p className="text-[10px] text-gray-400">
-                    {unreadCount > 0 ? `${unreadCount} sin leer` : 'Sin pendientes'}
+                    {unreadCount > 0
+                      ? t('topbar.unreadCount', { count: unreadCount })
+                      : t('topbar.noPending')}
                   </p>
                 </div>
                 {activeCriticalCount > 0 && (
                   <span className="bg-[#FFEBEE] text-[#C62828] text-[10px] font-bold px-2 py-1 rounded-full">
-                    {activeCriticalCount} críticas
+                    {t('topbar.criticalCount', { count: activeCriticalCount })}
                   </span>
                 )}
               </div>
@@ -180,8 +186,8 @@ export default function Topbar() {
                   ))
                 ) : (
                   <div className="p-8 text-center">
-                    <p className="text-sm font-semibold text-[#16333F]">No hay notificaciones</p>
-                    <p className="text-xs text-gray-400 mt-1">Las alertas aparecerán aquí.</p>
+                    <p className="text-sm font-semibold text-[#16333F]">{t('topbar.noNotifications')}</p>
+                    <p className="text-xs text-gray-400 mt-1">{t('topbar.alertsWillAppear')}</p>
                   </div>
                 )}
               </div>

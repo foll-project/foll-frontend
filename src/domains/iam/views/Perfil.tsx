@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { usePerfil } from '../hooks/usePerfil';
 
 // Íconos SVG
@@ -17,9 +18,10 @@ const Toggle = ({ isOn, onClick }: { isOn: boolean; onClick: () => void }) => (
 );
 
 export default function Perfil() {
+  const { t } = useTranslation();
   const { perfil, isLoading, formularios, handlers } = usePerfil();
 
-  if (isLoading || !perfil) return <div className="h-full flex items-center justify-center font-bold text-[#16333F]">Cargando perfil...</div>;
+  if (isLoading || !perfil) return <div className="h-full flex items-center justify-center font-bold text-[#16333F]">{t('perfil.loading')}</div>;
 
   const { formDatos, setFormDatos, formPreferencias, handleCambiarPreferencia, formPasswords, setFormPasswords } = formularios;
 
@@ -28,8 +30,8 @@ export default function Perfil() {
       
       {/* Cabecera */}
       <div>
-        <h1 className="text-3xl font-bold text-[#16333F] mb-2">Mi Perfil</h1>
-        <p className="text-sm text-gray-500">Gestiona tu información personal y preferencias de seguridad.</p>
+        <h1 className="text-3xl font-bold text-[#16333F] mb-2">{t('perfil.title')}</h1>
+        <p className="text-sm text-gray-500">{t('perfil.subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
@@ -50,23 +52,23 @@ export default function Perfil() {
           {/* Sección: Datos Personales */}
           <div className="mb-10">
             <h3 className="flex items-center gap-2 text-[#16333F] font-bold text-sm mb-6">
-              <IdCardIcon /> Datos Personales
+              <IdCardIcon /> {t('perfil.personalData')}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
               <div>
-                <label className="block text-[10px] font-bold text-gray-400 mb-1">Nombres</label>
+                <label className="block text-[10px] font-bold text-gray-400 mb-1">{t('perfil.firstName')}</label>
                 <input type="text" value={formDatos.nombres} onChange={e => setFormDatos({...formDatos, nombres: e.target.value})} className="w-full bg-transparent border-b border-gray-200 py-1.5 text-sm text-[#16333F] font-semibold outline-none focus:border-[#16333F] transition-colors" />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-gray-400 mb-1">Apellidos</label>
+                <label className="block text-[10px] font-bold text-gray-400 mb-1">{t('perfil.lastName')}</label>
                 <input type="text" value={formDatos.apellidos} onChange={e => setFormDatos({...formDatos, apellidos: e.target.value})} className="w-full bg-transparent border-b border-gray-200 py-1.5 text-sm text-[#16333F] font-semibold outline-none focus:border-[#16333F] transition-colors" />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-gray-400 mb-1">Correo Electrónico</label>
+                <label className="block text-[10px] font-bold text-gray-400 mb-1">{t('perfil.email')}</label>
                 <input type="email" value={formDatos.correo} onChange={e => setFormDatos({...formDatos, correo: e.target.value})} className="w-full bg-transparent border-b border-gray-200 py-1.5 text-sm text-[#16333F] font-semibold outline-none focus:border-[#16333F] transition-colors" />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-gray-400 mb-1">Teléfono Móvil</label>
+                <label className="block text-[10px] font-bold text-gray-400 mb-1">{t('perfil.mobilePhone')}</label>
                 <input type="tel" value={formDatos.telefono} onChange={e => setFormDatos({...formDatos, telefono: e.target.value})} className="w-full bg-transparent border-b border-gray-200 py-1.5 text-sm text-[#16333F] font-semibold outline-none focus:border-[#16333F] transition-colors" />
               </div>
             </div>
@@ -75,20 +77,20 @@ export default function Perfil() {
           {/* Sección: Seguridad y Contraseña */}
           <div>
             <h3 className="flex items-center gap-2 text-[#16333F] font-bold text-sm mb-6">
-              <LockIcon /> Seguridad y Contraseña
+              <LockIcon /> {t('perfil.securityPassword')}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
               <div className="md:col-span-2">
-                <label className="block text-[10px] font-bold text-gray-400 mb-1">Contraseña Actual</label>
-                <input type="password" placeholder="••••••••" value={formPasswords.actual} onChange={e => setFormPasswords({...formPasswords, actual: e.target.value})} className="w-full md:w-1/2 bg-transparent border-b border-gray-200 py-1.5 text-sm text-[#16333F] font-semibold outline-none focus:border-[#16333F] transition-colors" />
+                <label className="block text-[10px] font-bold text-gray-400 mb-1">{t('perfil.currentPassword')}</label>
+                <input type="password" placeholder={t('auth.passwordPlaceholder')} value={formPasswords.actual} onChange={e => setFormPasswords({...formPasswords, actual: e.target.value})} className="w-full md:w-1/2 bg-transparent border-b border-gray-200 py-1.5 text-sm text-[#16333F] font-semibold outline-none focus:border-[#16333F] transition-colors" />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-gray-400 mb-1">Nueva Contraseña</label>
-                <input type="password" placeholder="••••••••" value={formPasswords.nueva} onChange={e => setFormPasswords({...formPasswords, nueva: e.target.value})} className="w-full bg-transparent border-b border-gray-200 py-1.5 text-sm text-[#16333F] font-semibold outline-none focus:border-[#16333F] transition-colors" />
+                <label className="block text-[10px] font-bold text-gray-400 mb-1">{t('perfil.newPassword')}</label>
+                <input type="password" placeholder={t('auth.passwordPlaceholder')} value={formPasswords.nueva} onChange={e => setFormPasswords({...formPasswords, nueva: e.target.value})} className="w-full bg-transparent border-b border-gray-200 py-1.5 text-sm text-[#16333F] font-semibold outline-none focus:border-[#16333F] transition-colors" />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-gray-400 mb-1">Confirmar Nueva Contraseña</label>
-                <input type="password" placeholder="••••••••" value={formPasswords.confirmar} onChange={e => setFormPasswords({...formPasswords, confirmar: e.target.value})} className="w-full bg-transparent border-b border-gray-200 py-1.5 text-sm text-[#16333F] font-semibold outline-none focus:border-[#16333F] transition-colors" />
+                <label className="block text-[10px] font-bold text-gray-400 mb-1">{t('perfil.confirmNewPassword')}</label>
+                <input type="password" placeholder={t('auth.passwordPlaceholder')} value={formPasswords.confirmar} onChange={e => setFormPasswords({...formPasswords, confirmar: e.target.value})} className="w-full bg-transparent border-b border-gray-200 py-1.5 text-sm text-[#16333F] font-semibold outline-none focus:border-[#16333F] transition-colors" />
               </div>
             </div>
           </div>
@@ -100,15 +102,15 @@ export default function Perfil() {
           
           <div className="bg-gradient-to-b from-[#F2F8F7] to-white rounded-3xl p-8 shadow-[0_8px_30px_-15px_rgba(0,0,0,0.06)] border border-gray-50 flex-1">
             <h3 className="flex items-center gap-2 text-[#16333F] font-bold text-sm mb-8">
-              <BellIcon /> Preferencias de Notificación
+              <BellIcon /> {t('perfil.notificationPreferences')}
             </h3>
 
             <div className="space-y-8">
               {/* Opción 1 */}
               <div className="flex justify-between items-start gap-4">
                 <div>
-                  <h4 className="text-[#16333F] font-bold text-sm mb-1">Alertas de Caída Inmediatas</h4>
-                  <p className="text-[11px] text-gray-500 leading-relaxed pr-4">Recibir SMS y notificaciones push al instante en caso de detección de caída.</p>
+                  <h4 className="text-[#16333F] font-bold text-sm mb-1">{t('perfil.immediateFallAlerts')}</h4>
+                  <p className="text-[11px] text-gray-500 leading-relaxed pr-4">{t('perfil.immediateFallAlertsDesc')}</p>
                 </div>
                 <Toggle isOn={formPreferencias.alertasInmediatas} onClick={() => handleCambiarPreferencia('alertasInmediatas')} />
               </div>
@@ -116,8 +118,8 @@ export default function Perfil() {
               {/* Opción 2 */}
               <div className="flex justify-between items-start gap-4">
                 <div>
-                  <h4 className="text-[#16333F] font-bold text-sm mb-1">Resumen Diario de Actividad</h4>
-                  <p className="text-[11px] text-gray-500 leading-relaxed pr-4">Recibir un correo electrónico diario con el resumen de movimientos y estado.</p>
+                  <h4 className="text-[#16333F] font-bold text-sm mb-1">{t('perfil.dailyActivitySummary')}</h4>
+                  <p className="text-[11px] text-gray-500 leading-relaxed pr-4">{t('perfil.dailyActivitySummaryDesc')}</p>
                 </div>
                 <Toggle isOn={formPreferencias.resumenDiario} onClick={() => handleCambiarPreferencia('resumenDiario')} />
               </div>
@@ -125,8 +127,8 @@ export default function Perfil() {
               {/* Opción 3 */}
               <div className="flex justify-between items-start gap-4">
                 <div>
-                  <h4 className="text-[#16333F] font-bold text-sm mb-1">Actualizaciones del Sistema</h4>
-                  <p className="text-[11px] text-gray-500 leading-relaxed pr-4">Notificaciones sobre nuevas funciones y mantenimiento de la plataforma.</p>
+                  <h4 className="text-[#16333F] font-bold text-sm mb-1">{t('perfil.systemUpdates')}</h4>
+                  <p className="text-[11px] text-gray-500 leading-relaxed pr-4">{t('perfil.systemUpdatesDesc')}</p>
                 </div>
                 <Toggle isOn={formPreferencias.actualizacionesSistema} onClick={() => handleCambiarPreferencia('actualizacionesSistema')} />
               </div>
@@ -136,13 +138,13 @@ export default function Perfil() {
           {/* Botones de Acción Globales */}
           <div className="flex gap-4 justify-end">
             <button className="px-6 py-3 border border-gray-300 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors bg-white">
-              Cancelar
+              {t('common.cancel')}
             </button>
             <button 
               onClick={handlers.handleGuardarCambios}
               className="px-6 py-3 bg-[#3A5664] hover:bg-[#16333F] text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-colors shadow-md"
             >
-              <SaveIcon /> Guardar Cambios
+              <SaveIcon /> {t('common.saveChanges')}
             </button>
           </div>
 

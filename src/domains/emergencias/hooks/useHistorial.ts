@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { EventoCaida, TipoEvento } from '../models/evento.model';
 import type { Notification } from '../../notifications/models/notification.model';
 import { fetchMyPatients } from '../../iam/services/patientsApi';
 import { useNotifications } from '../../notifications/hooks/useNotifications';
+import i18n, { getDateLocale } from '../../../shared/i18n';
 
 const FALL_TYPES = ['FallDetected'];
 const FALSE_POSITIVE_TYPES = ['FallCancelled', 'FallDismissed', 'FalsePositive'];
@@ -42,9 +44,12 @@ const mapNotificationToEvento = (
 ): EventoCaida => {
   const date = new Date(notification.createdAt);
   const validDate = !Number.isNaN(date.getTime());
-  const tipo: TipoEvento = FALSE_POSITIVE_TYPES.includes(notification.notificationType)
-    ? 'Falso Positivo'
-    : 'Emergencia Real';
+  const dateLocale = getDateLocale();
+  const tipo = (
+    FALSE_POSITIVE_TYPES.includes(notification.notificationType)
+      ? i18n.t('historial.eventTypes.falsePositive')
+      : i18n.t('historial.eventTypes.realEmergency')
+  ) as TipoEvento;
 
   const parsed = parseFallData(notification.dataJson);
 
@@ -52,27 +57,28 @@ const mapNotificationToEvento = (
     notification.patientId != null && patientNames[notification.patientId]
       ? patientNames[notification.patientId]
       : notification.patientId != null
-        ? `Paciente #${notification.patientId}`
-        : 'Paciente desconocido';
+        ? i18n.t('common.patientNumber', { id: notification.patientId })
+        : i18n.t('historial.unknownPatient');
 
   return {
     id: String(notification.notificationLogId),
     ref: `#EVT-${notification.notificationLogId}`,
     fecha: validDate
-      ? date.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' })
+      ? date.toLocaleDateString(dateLocale, { day: '2-digit', month: 'short', year: 'numeric' })
       : '--',
     hora: validDate
-      ? date.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
+      ? date.toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })
       : '--',
     paciente,
     tipo,
-    ubicacion: parsed.location || 'Ubicación no disponible',
+    ubicacion: parsed.location || i18n.t('historial.locationUnavailable'),
     observaciones: notification.body || '',
     tipoCaida: parsed.fallType,
   };
 };
 
 export const useHistorial = () => {
+  useTranslation();
   const { notifications } = useNotifications();
   const [patientNames, setPatientNames] = useState<Record<number, string>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -114,7 +120,7 @@ export const useHistorial = () => {
       )
       .map((n) => mapNotificationToEvento(n, patientNames))
       .sort((a, b) => Number(b.id) - Number(a.id));
-  }, [notifications, patientNames]);
+  }, [notifications, patientNames, i18n.language]);
 
   useEffect(() => {
     setEventoSeleccionado((prev) => {

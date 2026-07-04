@@ -1,0 +1,23 @@
+services:
+  frontend1:
+    build: .
+    image: foll-frontend-1
+
+  frontend2:
+    build: .
+    image: foll-frontend-2
+
+  frontend3:
+    build: .
+    image: foll-frontend-3
+
+  load-balancer:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - frontend1
+      - frontend2
+      - frontend3

@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAbuelitos } from "../hooks/useAbuelitos";
 import { Modal } from "../../../shared/components/modals/Modal";
+import { ConfirmModal } from "../../../shared/components/modals/ConfirmModal";
+import { PatientQrModal } from "../components/PatientQrModal";
 import type { RegistrarAbuelitoDTO, Abuelito } from "../models/abuelito.model";
 
 // Íconos SVG
@@ -178,13 +181,44 @@ const NoteIcon = () => (
 );
 
 export default function MisAbuelitos() {
+  const { t } = useTranslation();
   const { abuelitos, solicitudes, isLoading, modals, detalles, handlers, vincular, caidasActivas, atenderCaida } =
     useAbuelitos();
   const location = useLocation();
   const navigate = useNavigate();
 
+  const rolPrincipalOficial = t("roles.principalOfficial");
+  const rolPrincipalInvitado = t("roles.principalGuest");
+  const rolSecundario = t("roles.secondary");
+
   // Paciente cuya caída se está atendiendo (para feedback en el botón).
   const [atendiendoId, setAtendiendoId] = useState<string | null>(null);
+  const [qrModalAbuelito, setQrModalAbuelito] = useState<{id: string, name: string} | null>(null);
+
+  // --- CONFIRMACIONES GLOBALES DE ESTA VISTA ---
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    isDestructive?: boolean;
+    confirmText?: string;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
+
+  const abrirConfirmacion = (
+    title: string,
+    message: string,
+    onConfirm: () => void,
+    isDestructive = false,
+    confirmText = t("common.confirm")
+  ) => {
+    setConfirmConfig({ isOpen: true, title, message, onConfirm, isDestructive, confirmText });
+  };
 
   const handleAtender = async (patientId: number) => {
     setAtendiendoId(String(patientId));
@@ -233,7 +267,7 @@ export default function MisAbuelitos() {
   if (isLoading)
     return (
       <div className="h-full flex items-center justify-center font-bold text-[#16333F]">
-        Cargando abuelitos...
+        {t("abuelitos.loading")}
       </div>
     );
 
@@ -243,10 +277,10 @@ export default function MisAbuelitos() {
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-bold text-[#16333F] mb-2">
-            Mis Abuelitos
+            {t("abuelitos.title")}
           </h1>
           <p className="text-sm text-gray-500">
-            Gestiona el monitoreo y accesos de tus familiares.
+            {t("abuelitos.subtitle")}
           </p>
         </div>
         <div className="flex gap-4">
@@ -254,13 +288,13 @@ export default function MisAbuelitos() {
             onClick={() => modals.setIsVincularOpen(true)}
             className="bg-[#FDECA6] hover:bg-[#FCE07B] text-[#16333F] px-6 py-2.5 rounded-xl font-bold text-sm transition-colors"
           >
-            Vincular Familiar
+            {t("abuelitos.linkFamily")}
           </button>
           <button
             onClick={() => modals.setIsRegistrarOpen(true)}
             className="bg-[#3D5665] hover:bg-[#16333F] text-white px-6 py-2.5 rounded-xl font-medium text-sm flex items-center gap-2 transition-colors shadow-md"
           >
-            <AddUserIcon /> Registrar Abuelito
+            <AddUserIcon /> {t("abuelitos.registerAbuelito")}
           </button>
         </div>
       </div>
@@ -302,7 +336,7 @@ export default function MisAbuelitos() {
                         <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
                       </span>
                       <p className="text-xs font-black uppercase tracking-wide">
-                        ¡Caída detectada!
+                        {t("abuelitos.fallDetected")}
                       </p>
                     </div>
                     <p className="text-[11px] mt-1 opacity-90">{caida.body}</p>
@@ -314,10 +348,10 @@ export default function MisAbuelitos() {
                       {atendiendoId === abuelito.id ? (
                         <>
                           <span className="w-3 h-3 border-2 border-red-300 border-t-red-700 rounded-full animate-spin" />
-                          Atendiendo...
+                          {t("common.attending")}
                         </>
                       ) : (
-                        'Atender emergencia'
+                        t("abuelitos.attendEmergency")
                       )}
                     </button>
                   </div>
@@ -331,7 +365,13 @@ export default function MisAbuelitos() {
                       {abuelito.nombre}
                     </h3>
                     <span
-                      className={`inline-block mt-1 text-[10px] font-bold px-3 py-1 rounded-full ${abuelito.rol === "Principal" && !isPendiente ? "bg-[#FDF5D3] text-[#DCA646]" : "bg-gray-200 text-gray-500"}`}
+                      className={`inline-block mt-1 text-[10px] font-bold px-3 py-1 rounded-full ${
+                        abuelito.rol === rolPrincipalOficial && !isPendiente 
+                          ? "bg-[#FDF5D3] text-[#DCA646]" 
+                          : abuelito.rol === rolPrincipalInvitado && !isPendiente
+                            ? "bg-sky-100 text-sky-800"
+                            : "bg-gray-200 text-gray-500"
+                      }`}
                     >
                       {abuelito.rol}
                     </span>
@@ -339,7 +379,11 @@ export default function MisAbuelitos() {
 
                   <div className="flex flex-col items-end gap-2">
                     {!isPendiente && (
-                      <button className="p-2 bg-white border border-gray-100 text-gray-400 hover:text-[#16333F] hover:bg-gray-50 rounded-lg transition-colors shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)]" title="Código QR">
+                      <button 
+                        onClick={() => setQrModalAbuelito({ id: abuelito.id, name: abuelito.nombre })}
+                        className="p-2 bg-white border border-gray-100 text-gray-400 hover:text-[#16333F] hover:bg-gray-50 rounded-lg transition-colors shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)]" 
+                        title={t("abuelitos.qrCode")}
+                      >
                         <QRIcon />
                       </button>
                     )}
@@ -349,7 +393,7 @@ export default function MisAbuelitos() {
                           className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-500 animate-pulse" : "bg-red-500"}`}
                         ></span>
                         <span className="text-[9px] font-bold text-gray-500 uppercase">
-                          {isOnline ? "Online" : "Offline"}
+                          {isOnline ? t("common.online") : t("common.offline")}
                         </span>
                       </div>
                     )}
@@ -359,10 +403,10 @@ export default function MisAbuelitos() {
                 {isPendiente ? (
                   /* VISTA: PENDIENTE DE VINCULACIÓN */
                   <div className="flex flex-col items-center justify-center flex-1 mt-4 relative z-10">
-                    {abuelito.rol === "Principal" ? (
+                    {abuelito.rol === rolPrincipalOficial || abuelito.rol === rolPrincipalInvitado ? (
                       <>
                         <p className="text-xs text-gray-400 text-center mb-3">
-                          Pendiente a vinculación con el hardware
+                          {t("abuelitos.pendingHardwareLink")}
                         </p>
                         <button
                           onClick={() =>
@@ -370,13 +414,12 @@ export default function MisAbuelitos() {
                           }
                           className="flex items-center gap-2 bg-[#FDECA6] hover:bg-[#FCE07B] text-[#16333F] px-4 py-2 rounded-xl text-xs font-bold transition-colors w-full justify-center"
                         >
-                          <LinkIcon /> Vincular Dispositivo
+                          <LinkIcon /> {t("abuelitos.linkDevice")}
                         </button>
                       </>
                     ) : (
                       <p className="text-xs text-gray-400 text-center">
-                        Sin dispositivo vinculado. Solo el cuidador principal
-                        puede vincularlo.
+                        {t("abuelitos.onlyPrincipalCanLink")}
                       </p>
                     )}
                   </div>
@@ -387,14 +430,14 @@ export default function MisAbuelitos() {
                     <div className="relative z-10 mt-4 bg-[#F9F7F1] border border-gray-100 rounded-2xl p-4">
                       <div className="flex items-center justify-between mb-3">
                         <span className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                          <CpuIcon /> Dispositivo {abuelito.dispositivo?.id}
+                          <CpuIcon /> {t("common.device")} {abuelito.dispositivo?.id}
                         </span>
                         <span className="flex items-center gap-1 text-[9px] font-bold text-gray-400">
                           <span className="relative flex h-1.5 w-1.5">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
                           </span>
-                          EN VIVO
+                          {t("common.live")}
                         </span>
                       </div>
 
@@ -407,7 +450,11 @@ export default function MisAbuelitos() {
                               {bateria}%
                             </p>
                             <p className="text-[9px] text-gray-400 font-medium mt-0.5">
-                              {cargando ? "Cargando" : bateriaBaja ? "Batería baja" : "Batería"}
+                              {cargando
+                                ? t("common.charging")
+                                : bateriaBaja
+                                  ? t("common.lowBattery")
+                                  : t("common.battery")}
                             </p>
                           </div>
                         </div>
@@ -429,7 +476,7 @@ export default function MisAbuelitos() {
                           <div className="flex items-center gap-1.5 justify-end">
                             <span className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
                             <span className="text-xs font-bold text-[#16333F]">
-                              {isOnline ? "Online" : "Offline"}
+                              {isOnline ? t("common.online") : t("common.offline")}
                             </span>
                           </div>
                           <p className="text-[9px] text-gray-400 font-medium mt-0.5">
@@ -441,10 +488,10 @@ export default function MisAbuelitos() {
 
                     <div className="flex gap-2 mt-4 relative z-10">
                       <button onClick={() => handlers.abrirDetallesPerfil(abuelito.id)} className="flex-1 border border-[#16333F] text-[#16333F] hover:bg-[#16333F] hover:text-white rounded-xl py-2 text-[11px] font-bold transition-colors">
-                        Perfil
+                        {t("common.profile")}
                       </button>
                       <button onClick={() => handlers.abrirBitacora(abuelito.id)} className="flex-1 flex items-center justify-center gap-1.5 border border-gray-200 text-[#16333F] hover:bg-gray-50 rounded-xl py-2 text-[11px] font-bold transition-colors">
-                        <NoteIcon /> Anotaciones
+                        <NoteIcon /> {t("common.notes")}
                       </button>
                     </div>
                   </>
@@ -458,11 +505,11 @@ export default function MisAbuelitos() {
         <div className="bg-white rounded-3xl p-6 shadow-[0_8px_30px_-15px_rgba(0,0,0,0.06)] border border-gray-50">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-[#16333F] font-bold text-base flex items-center gap-2">
-              <UsersIcon /> Solicitudes Pendientes
+              <UsersIcon /> {t("abuelitos.pendingRequests")}
             </h3>
             {solicitudes.length > 0 && (
               <span className="bg-[#FFEBEE] text-[#C62828] text-[10px] font-bold px-2 py-1 rounded-md">
-                {solicitudes.length} Nuevas
+                {solicitudes.length} {t("common.new")}
               </span>
             )}
           </div>
@@ -473,21 +520,17 @@ export default function MisAbuelitos() {
                 className="border-b border-gray-100 pb-5 last:border-0 last:pb-0"
               >
                 <p className="text-sm text-gray-600 mb-4 leading-relaxed">
-                  <span className="font-bold text-[#16333F]">
-                    {solicitud.solicitante}
-                  </span>{" "}
-                  solicita acceso para ver a{" "}
-                  <span className="font-bold text-[#16333F] underline decoration-[#89BAAF] decoration-2 underline-offset-2">
-                    {solicitud.abuelitoObjetivo}
-                  </span>
-                  .
+                  {t("abuelitos.accessRequest", {
+                    requester: solicitud.solicitante,
+                    target: solicitud.abuelitoObjetivo,
+                  })}
                 </p>
                 <div className="flex gap-3">
                   <button className="flex-1 bg-[#3D5665] hover:bg-[#16333F] text-white rounded-lg py-2 text-xs font-bold transition-colors">
-                    Aprobar
+                    {t("common.approve")}
                   </button>
                   <button className="flex-1 border border-gray-300 text-gray-500 hover:bg-gray-50 rounded-lg py-2 text-xs font-bold transition-colors">
-                    Rechazar
+                    {t("common.reject")}
                   </button>
                 </div>
               </div>
@@ -500,15 +543,14 @@ export default function MisAbuelitos() {
       <Modal
         isOpen={modals.isVincularOpen}
         onClose={() => modals.setIsVincularOpen(false)}
-        title="Vincular Familiar"
+        title={t("abuelitos.modals.linkFamilyTitle")}
       >
         <p className="text-sm text-gray-500 mb-5">
-          Ingresa el DNI del adulto mayor para enviar una solicitud al Cuidador
-          Principal.
+          {t("abuelitos.modals.linkFamilyDescription")}
         </p>
         <input
           type="text"
-          placeholder="Ej. 12345678"
+          placeholder={t("common.dniExample")}
           value={dniVincularFamiliar}
           onChange={(e) => setDniVincularFamiliar(e.target.value)}
           className="w-full px-4 py-3 bg-[#F9F7F1] border border-gray-200 rounded-xl text-sm outline-none focus:border-[#16333F] mb-6"
@@ -517,7 +559,7 @@ export default function MisAbuelitos() {
           onClick={() => handlers.handleVincularFamiliar(dniVincularFamiliar)}
           className="w-full bg-[#FDECA6] hover:bg-[#FCE07B] text-[#16333F] py-3 rounded-xl font-bold transition-colors"
         >
-          Enviar Solicitud
+          {t("common.sendRequest")}
         </button>
       </Modal>
 
@@ -530,11 +572,16 @@ export default function MisAbuelitos() {
           setCodigoHardware("");
           vincular.clearError();
         }}
-        title="Vincular Dispositivo"
+        title={t("abuelitos.modals.linkDeviceTitle")}
       >
         <p className="text-sm text-gray-500 mb-5">
-          Ingresa el <span className="font-bold text-[#16333F]">ID numérico</span> del
-          dispositivo (ej. <span className="font-mono">1001</span>) para vincularlo a{" "}
+          {t("abuelitos.modals.linkDeviceDescriptionPrefix")}{" "}
+          <span className="font-bold text-[#16333F]">
+            {t("abuelitos.modals.linkDeviceDescriptionNumericId")}
+          </span>{" "}
+          {t("abuelitos.modals.linkDeviceDescriptionSuffix")}{" "}
+          <span className="font-mono">1001</span>
+          {t("abuelitos.modals.linkDeviceDescriptionFor")}{" "}
           <span className="font-bold text-[#16333F]">
             {detalles.abuelitoSeleccionado?.nombre}
           </span>.
@@ -546,7 +593,7 @@ export default function MisAbuelitos() {
           </div>
           <input
             type="number"
-            placeholder="Ej. 1001"
+            placeholder={t("common.deviceIdExample")}
             value={codigoHardware}
             onChange={(e) => {
               setCodigoHardware(e.target.value);
@@ -574,10 +621,10 @@ export default function MisAbuelitos() {
           {vincular.isLoading ? (
             <>
               <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Vinculando...
+              {t("common.linking")}
             </>
           ) : (
-            "Vincular y Activar Monitoreo"
+            t("abuelitos.modals.linkAndActivate")
           )}
         </button>
       </Modal>
@@ -586,14 +633,14 @@ export default function MisAbuelitos() {
       <Modal
         isOpen={modals.isDispositivoOpen}
         onClose={() => modals.setIsDispositivoOpen(false)}
-        title="Telemetría del Dispositivo"
+        title={t("abuelitos.modals.deviceTelemetryTitle")}
       >
         {detalles.abuelitoSeleccionado?.dispositivo && (
           <div className="space-y-6">
             <div className="flex justify-between items-center bg-[#F9F7F1] p-4 rounded-xl border border-gray-100">
               <div>
                 <p className="text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-wider">
-                  ID de Hardware
+                  {t("abuelitos.modals.hardwareId")}
                 </p>
                 <p className="text-base font-mono font-bold text-[#16333F]">
                   {detalles.abuelitoSeleccionado.dispositivo.id}
@@ -601,14 +648,16 @@ export default function MisAbuelitos() {
               </div>
               <div className="text-right">
                 <p className="text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-wider">
-                  Estado de Red
+                  {t("abuelitos.modals.networkStatus")}
                 </p>
                 <div className="flex items-center gap-1.5 justify-end">
                   <span
                     className={`w-2 h-2 rounded-full ${detalles.abuelitoSeleccionado.dispositivo.estadoGeneral === "Online" ? "bg-green-500 animate-pulse" : "bg-red-500"}`}
                   ></span>
                   <span className="text-sm font-bold text-[#16333F]">
-                    {detalles.abuelitoSeleccionado.dispositivo.estadoGeneral}
+                    {detalles.abuelitoSeleccionado.dispositivo.estadoGeneral === "Online"
+                      ? t("common.online")
+                      : t("common.offline")}
                   </span>
                 </div>
               </div>
@@ -616,7 +665,7 @@ export default function MisAbuelitos() {
 
             <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
               <h4 className="text-xs font-bold text-[#16333F] mb-4 border-b border-gray-100 pb-2">
-                Estado de Energía
+                {t("abuelitos.modals.energyStatus")}
               </h4>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -632,15 +681,15 @@ export default function MisAbuelitos() {
                     </p>
                     <p className="text-[10px] text-gray-500 mt-1 font-medium">
                       {detalles.abuelitoSeleccionado.dispositivo.cargando
-                        ? "Cargando actualmente..."
-                        : "Descargando"}
+                        ? t("abuelitos.modals.currentlyCharging")
+                        : t("abuelitos.modals.discharging")}
                     </p>
                   </div>
                 </div>
                 {detalles.abuelitoSeleccionado.dispositivo.bateria <= 20 &&
                   !detalles.abuelitoSeleccionado.dispositivo.cargando && (
                     <span className="bg-red-50 text-red-600 text-[10px] font-bold px-3 py-1.5 rounded-lg border border-red-100">
-                      Requiere Carga
+                      {t("abuelitos.modals.requiresCharge")}
                     </span>
                   )}
               </div>
@@ -656,17 +705,15 @@ export default function MisAbuelitos() {
           modals.setIsAnotacionOpen(false);
           setNuevaAnotacion("");
         }}
-        title="Añadir Anotación Rápida"
+        title={t("abuelitos.modals.quickNoteTitle")}
       >
         <p className="text-sm text-gray-500 mb-5">
-          Escribe una nota rápida para el registro médico de{" "}
-          <span className="font-bold text-[#16333F]">
-            {detalles.abuelitoSeleccionado?.nombre}
-          </span>
-          .
+          {t("abuelitos.modals.quickNoteDescription", {
+            name: detalles.abuelitoSeleccionado?.nombre,
+          })}
         </p>
         <textarea
-          placeholder="Ej. Hoy amaneció con dolor de cabeza..."
+          placeholder={t("abuelitos.modals.quickNotePlaceholder")}
           value={nuevaAnotacion}
           onChange={(e) => setNuevaAnotacion(e.target.value)}
           rows={4}
@@ -681,7 +728,7 @@ export default function MisAbuelitos() {
           }}
           className="w-full bg-[#DCA646] hover:bg-[#B8860B] text-white py-3 rounded-xl font-bold transition-colors shadow-md"
         >
-          Guardar Anotación
+          {t("abuelitos.modals.saveNote")}
         </button>
       </Modal>
 
@@ -689,14 +736,12 @@ export default function MisAbuelitos() {
       <Modal
         isOpen={modals.isBitacoraOpen}
         onClose={() => modals.setIsBitacoraOpen(false)}
-        title="Bitácora de Cuidado"
+        title={t("abuelitos.modals.careLogTitle")}
       >
         <p className="text-sm text-gray-500 mb-5">
-          Historial de anotaciones médicas para{" "}
-          <span className="font-bold text-[#16333F]">
-            {detalles.abuelitoSeleccionado?.nombre}
-          </span>
-          .
+          {t("abuelitos.modals.careLogDescription", {
+            name: detalles.abuelitoSeleccionado?.nombre,
+          })}
         </p>
         <button
           onClick={() => {
@@ -707,7 +752,7 @@ export default function MisAbuelitos() {
           }}
           className="w-full mb-5 bg-[#FDECA6] hover:bg-[#FCE07B] text-[#16333F] py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2"
         >
-          <NoteIcon /> Añadir Nueva Anotación
+          <NoteIcon /> {t("abuelitos.modals.addNewNote")}
         </button>
         <div className="space-y-4 max-h-80 overflow-y-auto pr-2">
           {detalles.abuelitoSeleccionado?.anotaciones && detalles.abuelitoSeleccionado.anotaciones.length > 0 ? (
@@ -717,14 +762,18 @@ export default function MisAbuelitos() {
                 <div className="pl-2">
                   <p className="text-xs text-gray-500 mb-1 font-bold">{nota.fecha}</p>
                   <p className="text-sm text-[#16333F] mb-3 leading-relaxed">{nota.texto}</p>
-                  <p className="text-[10px] text-gray-400 font-medium">Registrado por: {nota.autor}</p>
+                  <p className="text-[10px] text-gray-400 font-medium">
+                    {t("common.registeredBy", { author: nota.autor })}
+                  </p>
                 </div>
               </div>
             ))
           ) : (
             <div className="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-300">
               <NoteIcon />
-              <p className="text-sm text-gray-400 font-medium mt-3">No hay anotaciones registradas.</p>
+              <p className="text-sm text-gray-400 font-medium mt-3">
+                {t("abuelitos.modals.noNotes")}
+              </p>
             </div>
           )}
         </div>
@@ -734,13 +783,13 @@ export default function MisAbuelitos() {
       <Modal
         isOpen={modals.isRegistrarOpen}
         onClose={() => modals.setIsRegistrarOpen(false)}
-        title="Registrar Abuelito"
+        title={t("abuelitos.modals.registerTitle")}
       >
         {/* (El mismo formulario que ya tenías) */}
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-bold text-[#16333F] mb-1">
-              Nombre Completo
+              {t("abuelitos.modals.fullName")}
             </label>
             <input
               type="text"
@@ -753,7 +802,7 @@ export default function MisAbuelitos() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-[#16333F] mb-1">
-                DNI
+                {t("abuelitos.modals.dni")}
               </label>
               <input
                 type="text"
@@ -766,7 +815,7 @@ export default function MisAbuelitos() {
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-xs font-bold text-[#16333F] mb-1">
-                  Edad
+                  {t("abuelitos.modals.age")}
                 </label>
                 <input
                   type="number"
@@ -778,7 +827,7 @@ export default function MisAbuelitos() {
               </div>
               <div>
                 <label className="block text-xs font-bold text-[#16333F] mb-1">
-                  G. Sangre
+                  {t("abuelitos.modals.bloodGroupShort")}
                 </label>
                 <select
                   onChange={(e) =>
@@ -799,11 +848,11 @@ export default function MisAbuelitos() {
           </div>
           <div>
             <label className="block text-xs font-bold text-[#16333F] mb-1">
-              Enfermedades
+              {t("abuelitos.modals.diseases")}
             </label>
             <input
               type="text"
-              placeholder="Ej. Hipertensión"
+              placeholder={t("abuelitos.modals.diseasesPlaceholder")}
               onChange={(e) =>
                 setFormRegistro({
                   ...formRegistro,
@@ -815,11 +864,11 @@ export default function MisAbuelitos() {
           </div>
           <div>
             <label className="block text-xs font-bold text-[#16333F] mb-1">
-              Medicamentos
+              {t("abuelitos.modals.medications")}
             </label>
             <input
               type="text"
-              placeholder="Ej. Losartán"
+              placeholder={t("abuelitos.modals.medicationsPlaceholder")}
               onChange={(e) =>
                 setFormRegistro({
                   ...formRegistro,
@@ -833,7 +882,7 @@ export default function MisAbuelitos() {
             onClick={() => handlers.handleRegistrar(formRegistro)}
             className="w-full bg-[#3D5665] hover:bg-[#16333F] text-white py-3 mt-4 rounded-xl font-bold transition-colors shadow-md"
           >
-            Guardar Registro
+            {t("abuelitos.modals.saveRegistration")}
           </button>
         </div>
       </Modal>
@@ -842,7 +891,7 @@ export default function MisAbuelitos() {
       <Modal
         isOpen={modals.isDetallesOpen}
         onClose={() => modals.setIsDetallesOpen(false)}
-        title={isEditing ? "Editar Perfil" : "Detalles del Perfil"}
+        title={isEditing ? t("abuelitos.modals.editProfileTitle") : t("abuelitos.modals.profileDetailsTitle")}
       >
         {/* (El mismo modal de editar/ver detalles que ya tenías) */}
         {detalles.abuelitoSeleccionado && (
@@ -850,18 +899,19 @@ export default function MisAbuelitos() {
             {showDeleteConfirm ? (
               <div className="bg-red-50 border border-red-200 p-5 rounded-xl text-center space-y-4">
                 <h4 className="text-red-700 font-bold text-lg">
-                  ¿Eliminar perfil?
+                  {t("abuelitos.modals.deleteProfileTitle")}
                 </h4>
                 <p className="text-sm text-red-600">
-                  Esta acción no se puede deshacer. Se perderá el historial
-                  asociado a {detalles.abuelitoSeleccionado.nombre}.
+                  {t("abuelitos.modals.deleteProfileMessage", {
+                    name: detalles.abuelitoSeleccionado.nombre,
+                  })}
                 </p>
                 <div className="flex gap-3 pt-2">
                   <button
                     onClick={() => setShowDeleteConfirm(false)}
                     className="flex-1 bg-white border border-gray-300 text-gray-600 py-2 rounded-lg text-sm font-bold hover:bg-gray-50 transition-colors"
                   >
-                    Cancelar
+                    {t("common.cancel")}
                   </button>
                   <button
                     onClick={() =>
@@ -869,7 +919,7 @@ export default function MisAbuelitos() {
                     }
                     className="flex-1 bg-red-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-red-700 transition-colors"
                   >
-                    Sí, eliminar
+                    {t("common.yesDelete")}
                   </button>
                 </div>
               </div>
@@ -878,7 +928,7 @@ export default function MisAbuelitos() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-gray-500 mb-1">
-                      Nombre Completo
+                      {t("abuelitos.modals.fullName")}
                     </label>
                     {isEditing ? (
                       <input
@@ -898,8 +948,8 @@ export default function MisAbuelitos() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-gray-500 mb-1">
-                        DNI{" "}
-                        <span className="font-normal text-xs">(Inmutable)</span>
+                        {t("abuelitos.modals.dni")}{" "}
+                        <span className="font-normal text-xs">{t("common.immutable")}</span>
                       </label>
                       <p className="font-semibold text-gray-500 bg-gray-100 px-3 py-2 rounded-lg text-sm cursor-not-allowed">
                         {detalles.abuelitoSeleccionado.dni}
@@ -908,7 +958,7 @@ export default function MisAbuelitos() {
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="block text-xs font-bold text-gray-500 mb-1">
-                          Edad
+                          {t("abuelitos.modals.age")}
                         </label>
                         {isEditing ? (
                           <input
@@ -921,13 +971,13 @@ export default function MisAbuelitos() {
                           />
                         ) : (
                           <p className="font-semibold text-[#16333F]">
-                            {detalles.abuelitoSeleccionado.edad} años
+                            {detalles.abuelitoSeleccionado.edad} {t("common.years")}
                           </p>
                         )}
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-gray-500 mb-1">
-                          G. Sangre
+                          {t("abuelitos.modals.bloodGroupShort")}
                         </label>
                         {isEditing ? (
                           <select
@@ -955,7 +1005,7 @@ export default function MisAbuelitos() {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-gray-500 mb-1">
-                      Enfermedades
+                      {t("abuelitos.modals.diseases")}
                     </label>
                     {isEditing ? (
                       <input
@@ -973,13 +1023,13 @@ export default function MisAbuelitos() {
                       <p className="font-semibold text-[#16333F]">
                         {detalles.abuelitoSeleccionado.enfermedades?.join(
                           ", ",
-                        ) || "Sin condiciones registradas"}
+                        ) || t("abuelitos.modals.noConditions")}
                       </p>
                     )}
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-gray-500 mb-1">
-                      Medicamentos
+                      {t("abuelitos.modals.medications")}
                     </label>
                     {isEditing ? (
                       <input
@@ -997,7 +1047,7 @@ export default function MisAbuelitos() {
                       <p className="font-semibold text-[#16333F]">
                         {detalles.abuelitoSeleccionado.medicamentos?.join(
                           ", ",
-                        ) || "Sin medicamentos registrados"}
+                        ) || t("abuelitos.modals.noMedications")}
                       </p>
                     )}
                   </div>
@@ -1005,15 +1055,15 @@ export default function MisAbuelitos() {
 
                 <div className="mt-6 pt-6 border-t border-gray-100">
                   <h4 className="flex items-center gap-2 text-xs font-bold text-[#16333F] mb-4 uppercase tracking-wider">
-                    <UsersIcon /> Equipo de Cuidado
+                    <UsersIcon /> {t("abuelitos.modals.careTeam")}
                   </h4>
 
                   <div className="space-y-3">
                     {detalles.abuelitoSeleccionado.cuidadores.map(
                       (cuidador) => {
-                        const isMe = cuidador.email === "maria@foll.com"; // Simulación de tu email
+                        const isMe = cuidador.id === String(modals.currentUserId);
                         const iamPrincipal =
-                          detalles.abuelitoSeleccionado!.rol === "Principal";
+                          detalles.abuelitoSeleccionado!.rol === rolPrincipalOficial;
 
                         return (
                           <div
@@ -1022,75 +1072,107 @@ export default function MisAbuelitos() {
                           >
                             <div className="flex items-center gap-3">
                               <div
-                                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${cuidador.rol === "Principal" ? "bg-[#FDF5D3] text-[#DCA646]" : "bg-gray-200 text-gray-500"}`}
+                                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
+                                  cuidador.rol === rolPrincipalOficial 
+                                    ? "bg-[#FDF5D3] text-[#DCA646]" 
+                                    : cuidador.rol === rolPrincipalInvitado
+                                      ? "bg-sky-100 text-sky-800"
+                                      : "bg-gray-200 text-gray-500"
+                                }`}
                               >
                                 {cuidador.nombre.charAt(0)}
                               </div>
                               <div>
                                 <p className="text-xs font-bold text-[#16333F]">
-                                  {cuidador.nombre} {isMe && "(Tú)"}
+                                  {cuidador.nombre} {isMe && `(${t("common.you")})`}
                                 </p>
-                                <p className="text-[10px] text-gray-400">
-                                  {cuidador.rol}
-                                </p>
+                                
+                                {cuidador.rol === rolPrincipalOficial && (
+                                  <span className="text-[10px] text-gray-400 font-medium">
+                                    {t("roles.principalOfficial")}
+                                  </span>
+                                )}
+                                {cuidador.rol === rolPrincipalInvitado && (
+                                  <span className="text-[10px] font-medium inline-block mt-0.5 bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full">
+                                    {t("roles.guestPrimaryBadge")}
+                                  </span>
+                                )}
+                                {cuidador.rol === rolSecundario && (
+                                  <span className="text-[10px] font-medium inline-block mt-0.5 bg-gray-100 text-gray-800 px-2 py-0.5 rounded-full">
+                                    {t("roles.secondaryBadge")}
+                                  </span>
+                                )}
+
                               </div>
                             </div>
 
                             {/* ACCIONES PARA EL PRINCIPAL */}
-                            {iamPrincipal && !isMe && (
+                            {iamPrincipal && !isMe && cuidador.rol !== rolPrincipalOficial && (
                               <div className="flex gap-1">
-                                {cuidador.rol === "Invitado" ? (
+                                {cuidador.rol === rolSecundario ? (
                                   <button
-                                    title="Compartir Mando Principal"
+                                    title={t("abuelitos.confirmations.shareCommandTooltip")}
                                     onClick={() => {
-                                      if (
-                                        window.confirm(
-                                          `¿Estás seguro de compartir el mando principal con ${cuidador.nombre}?`
-                                        )
-                                      ) {
-                                        handlers.handleCompartirMando(
-                                          detalles.abuelitoSeleccionado!.id,
-                                          cuidador.id
-                                        );
-                                      }
+                                      abrirConfirmacion(
+                                        t("abuelitos.confirmations.shareCommandTitle"),
+                                        t("abuelitos.confirmations.shareCommandMessage", {
+                                          name: cuidador.nombre,
+                                        }),
+                                        () => {
+                                          handlers.handleCompartirMando(
+                                            detalles.abuelitoSeleccionado!.id,
+                                            cuidador.id
+                                          );
+                                        },
+                                        false,
+                                        t("common.share")
+                                      );
                                     }}
                                     className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                                   >
                                     <ShieldCheckIcon />
                                   </button>
-                                ) : (
+                                ) : cuidador.rol === rolPrincipalInvitado ? (
                                   <button
-                                    title="Quitar Mando Principal"
+                                    title={t("abuelitos.confirmations.removeCommandTooltip")}
                                     onClick={() => {
-                                      if (
-                                        window.confirm(
-                                          `¿Estás seguro de quitar el mando principal a ${cuidador.nombre}?`
-                                        )
-                                      ) {
-                                        handlers.handleQuitarMando(
-                                          detalles.abuelitoSeleccionado!.id,
-                                          cuidador.id
-                                        );
-                                      }
+                                      abrirConfirmacion(
+                                        t("abuelitos.confirmations.removeCommandTitle"),
+                                        t("abuelitos.confirmations.removeCommandMessage", {
+                                          name: cuidador.nombre,
+                                        }),
+                                        () => {
+                                          handlers.handleQuitarMando(
+                                            detalles.abuelitoSeleccionado!.id,
+                                            cuidador.id
+                                          );
+                                        },
+                                        true,
+                                        t("abuelitos.confirmations.removeCommandConfirm")
+                                      );
                                     }}
                                     className="p-2 text-[#DCA646] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                   >
                                     <ShieldXIcon />
                                   </button>
-                                )}
+                                ) : null}
                                 <button
-                                  title="Eliminar del Equipo"
+                                  title={t("abuelitos.confirmations.removeFromTeamTooltip")}
                                   onClick={() => {
-                                    if (
-                                      window.confirm(
-                                        `¿Eliminar a ${cuidador.nombre} del equipo de cuidado?`,
-                                      )
-                                    ) {
-                                      handlers.handleEliminarCuidador(
-                                        detalles.abuelitoSeleccionado!.id,
-                                        cuidador.id,
-                                      );
-                                    }
+                                    abrirConfirmacion(
+                                      t("abuelitos.confirmations.removeCaregiverTitle"),
+                                      t("abuelitos.confirmations.removeCaregiverMessage", {
+                                        name: cuidador.nombre,
+                                      }),
+                                      () => {
+                                        handlers.handleEliminarCuidador(
+                                          detalles.abuelitoSeleccionado!.id,
+                                          cuidador.id,
+                                        );
+                                      },
+                                      true,
+                                      t("common.delete")
+                                    );
                                   }}
                                   className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                 >
@@ -1100,7 +1182,7 @@ export default function MisAbuelitos() {
                             )}
 
                             {/* Badge para el principal (si no soy yo) */}
-                            {cuidador.rol === "Principal" && !iamPrincipal && (
+                            {cuidador.rol === rolPrincipalOficial && !iamPrincipal && (
                               <span className="text-[#DCA646]">
                                 <ShieldCheckIcon />
                               </span>
@@ -1118,7 +1200,7 @@ export default function MisAbuelitos() {
                         onClick={() => setIsEditing(false)}
                         className="flex-1 bg-white border border-gray-300 text-gray-600 py-2.5 rounded-xl font-bold text-sm hover:bg-gray-50 transition-colors"
                       >
-                        Cancelar
+                        {t("common.cancel")}
                       </button>
                       <button
                         onClick={() =>
@@ -1129,7 +1211,7 @@ export default function MisAbuelitos() {
                         }
                         className="flex-1 bg-[#3D5665] text-white py-2.5 rounded-xl font-bold text-sm hover:bg-[#16333F] transition-colors"
                       >
-                        Guardar Cambios
+                        {t("common.saveChanges")}
                       </button>
                     </>
                   ) : (
@@ -1144,7 +1226,7 @@ export default function MisAbuelitos() {
                         onClick={handleIniciarEdicion}
                         className="flex-1 flex items-center justify-center gap-2 bg-[#3D5665] text-white py-2.5 rounded-xl font-bold text-sm hover:bg-[#16333F] transition-colors"
                       >
-                        <EditIcon /> Editar Perfil
+                        <EditIcon /> {t("abuelitos.modals.editProfile")}
                       </button>
                     </>
                   )}
@@ -1154,6 +1236,23 @@ export default function MisAbuelitos() {
           </div>
         )}
       </Modal>
+
+      <PatientQrModal
+        isOpen={qrModalAbuelito !== null}
+        onClose={() => setQrModalAbuelito(null)}
+        patientId={qrModalAbuelito?.id || ""}
+        patientName={qrModalAbuelito?.name || ""}
+      />
+
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        onClose={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        onConfirm={confirmConfig.onConfirm}
+        isDestructive={confirmConfig.isDestructive}
+        confirmText={confirmConfig.confirmText}
+      />
     </div>
   );
 }

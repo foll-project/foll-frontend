@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { i18n } from '../../../shared/i18n';
 import type { PerfilUsuario, DatosPersonales, PreferenciasNotificacion } from '../models/perfil.model';
 import type { User } from '../models/user.model';
 
@@ -17,8 +18,8 @@ const getStoredUser = (): User | null => {
 
 const createPerfilFromUser = (user: User): PerfilUsuario => ({
   id: String(user.userId),
-  rol: 'Cuidador Principal',
-  estado: 'Cuenta Activa',
+  rol: i18n.t('roles.primaryCaregiver'),
+  estado: i18n.t('status.activeAccount'),
   datos: {
     nombres: user.firstName,
     apellidos: user.lastName,
@@ -65,8 +66,8 @@ export const usePerfil = () => {
       await new Promise(resolve => setTimeout(resolve, 500));
       const mockData: PerfilUsuario = {
         id: '1',
-        rol: 'Cuidador Principal',
-        estado: 'Cuenta Activa',
+        rol: i18n.t('roles.primaryCaregiver'),
+        estado: i18n.t('status.activeAccount'),
         datos: {
           nombres: 'María',
           apellidos: 'Gonzales',
@@ -96,7 +97,7 @@ export const usePerfil = () => {
   const handleGuardarCambios = () => {
     console.log('Guardando perfil...', { formDatos, formPreferencias, formPasswords });
     // Aquí iría tu fetch al API Gateway (Ej. PUT /api/v1/users/profile)
-    alert('Cambios guardados con éxito');
+    alert(i18n.t('perfil.saveSuccess'));
     setFormPasswords({ actual: '', nueva: '', confirmar: '' }); // Limpiamos contraseñas
   };
 

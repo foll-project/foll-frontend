@@ -22,6 +22,8 @@ export const API_CONFIG = {
     CREATE: '/api/care/patients',
     GET_ONE: (id: number) => `/api/care/patients/${id}`,
     UPDATE: (id: number) => `/api/care/patients/${id}`,
+    DELETE: (id: number) => `/api/care/patients/${id}`,
+    GET_MONTHLY_FALLS: (patientId: number, month: number, year: number) => `/api/emergency/incidents/history/patient/${patientId}/monthly?month=${month}&year=${year}`,
     
     // Guardian Management
     CHANGE_GUARDIAN: (id: number) => `/api/care/patients/${id}/guard-shift`,
@@ -40,6 +42,7 @@ export const API_CONFIG = {
     
     // Relationships
     GET_CAREGIVERS: (id: number) => `/api/care/patients/${id}/caregivers`,
+    REMOVE_CAREGIVER: (patientId: number, caregiverId: number) => `/api/patients/${patientId}/caregivers/${caregiverId}`,
     GET_BY_CAREGIVER: (caregiverUserId: number) => `/api/care/patients/by-caregiver/${caregiverUserId}`,
   },
 

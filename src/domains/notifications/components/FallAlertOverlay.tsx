@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { getDateLocale } from '../../../shared/i18n';
 import { useNotifications } from '../hooks/useNotifications';
 import { fetchMyPatients } from '../../iam/services/patientsApi';
 import type { Notification } from '../models/notification.model';
@@ -26,10 +28,10 @@ const parseFallData = (dataJson?: string | null): FallData => {
   }
 };
 
-const formatTime = (createdAt: string): string => {
+const formatTime = (createdAt: string, locale: string): string => {
   const date = new Date(createdAt);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString('es-PE', {
+  return date.toLocaleString(locale, {
     day: '2-digit',
     month: 'short',
     hour: '2-digit',
@@ -39,13 +41,13 @@ const formatTime = (createdAt: string): string => {
 };
 
 export default function FallAlertOverlay() {
+  const { t } = useTranslation();
   const { notifications, attendFall, markFallAsFalseAlarm } = useNotifications();
   const navigate = useNavigate();
   const [patientNames, setPatientNames] = useState<Record<number, string>>({});
   const [dismissedIds, setDismissedIds] = useState<number[]>([]);
   const [accion, setAccion] = useState<'atender' | 'falsa' | null>(null);
 
-  // Caídas sin confirmar (más reciente primero)
   const activeFalls = useMemo<Notification[]>(() => {
     return notifications
       .filter((n) => n.notificationType === 'FallDetected' && !n.acknowledgedAt)
@@ -55,7 +57,6 @@ export default function FallAlertOverlay() {
 
   const currentFall = activeFalls[0] || null;
 
-  // Cargar nombres de pacientes cuando aparece una caída de un paciente desconocido
   useEffect(() => {
     if (!currentFall || currentFall.patientId == null) return;
     if (patientNames[currentFall.patientId]) return;
@@ -84,8 +85,8 @@ export default function FallAlertOverlay() {
     currentFall.patientId != null && patientNames[currentFall.patientId]
       ? patientNames[currentFall.patientId]
       : currentFall.patientId != null
-        ? `Paciente #${currentFall.patientId}`
-        : 'Paciente';
+        ? t('common.patientNumber', { id: currentFall.patientId })
+        : t('common.patient');
 
   const confidencePct = fallData.confidence
     ? `${Math.round(parseFloat(fallData.confidence) * 100)}%`
@@ -122,7 +123,6 @@ export default function FallAlertOverlay() {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
       <div className="relative w-full max-w-md mx-4 bg-white rounded-3xl shadow-2xl overflow-hidden border-2 border-red-500">
-        {/* Encabezado rojo pulsante */}
         <div className="bg-red-600 px-6 py-5 text-white relative overflow-hidden">
           <div className="absolute inset-0 bg-red-500 animate-pulse opacity-40" />
           <div className="relative flex items-center gap-3">
@@ -135,45 +135,44 @@ export default function FallAlertOverlay() {
             </span>
             <div>
               <p className="text-[11px] font-bold uppercase tracking-widest opacity-90">
-                Alerta de Emergencia
+                {t('notifications.fallOverlay.emergencyAlert')}
               </p>
-              <h2 className="text-2xl font-black leading-tight">¡Caída detectada!</h2>
+              <h2 className="text-2xl font-black leading-tight">{t('notifications.fallOverlay.fallDetected')}</h2>
             </div>
           </div>
           {activeFalls.length > 1 && (
             <span className="absolute top-4 right-5 bg-white text-red-700 text-[11px] font-black px-2.5 py-1 rounded-full">
-              +{activeFalls.length - 1} más
+              {t('common.moreAlerts', { count: activeFalls.length - 1 })}
             </span>
           )}
         </div>
 
-        {/* Cuerpo */}
         <div className="px-6 py-6 space-y-5">
           <div className="text-center">
             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">
-              Adulto mayor
+              {t('notifications.fallOverlay.elder')}
             </p>
             <p className="text-2xl font-black text-[#16333F]">{patientName}</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-[#F9F7F1] rounded-xl p-3 text-center">
-              <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Hora</p>
-              <p className="text-xs font-bold text-[#16333F]">{formatTime(currentFall.createdAt)}</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">{t('notifications.fallOverlay.time')}</p>
+              <p className="text-xs font-bold text-[#16333F]">{formatTime(currentFall.createdAt, getDateLocale())}</p>
             </div>
             <div className="bg-[#F9F7F1] rounded-xl p-3 text-center">
-              <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Tipo de caída</p>
-              <p className="text-xs font-bold text-[#16333F]">{fallData.fallTypeName || 'No especificado'}</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">{t('notifications.fallOverlay.fallType')}</p>
+              <p className="text-xs font-bold text-[#16333F]">{fallData.fallTypeName || t('common.notSpecified')}</p>
             </div>
             {confidencePct && (
               <div className="bg-[#F9F7F1] rounded-xl p-3 text-center">
-                <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Confianza IA</p>
+                <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">{t('notifications.fallOverlay.aiConfidence')}</p>
                 <p className="text-xs font-bold text-[#16333F]">{confidencePct}</p>
               </div>
             )}
             {hasLocation && (
               <div className="bg-[#F9F7F1] rounded-xl p-3 text-center">
-                <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Ubicación</p>
+                <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">{t('notifications.fallOverlay.location')}</p>
                 <p className="text-[10px] font-bold text-[#16333F] font-mono">
                   {parseFloat(fallData.latitude!).toFixed(4)}, {parseFloat(fallData.longitude!).toFixed(4)}
                 </p>
@@ -185,7 +184,6 @@ export default function FallAlertOverlay() {
             {currentFall.body}
           </p>
 
-          {/* Acciones */}
           <div className="space-y-3 pt-1">
             <button
               onClick={handleAtender}
@@ -195,10 +193,10 @@ export default function FallAlertOverlay() {
               {accion === 'atender' ? (
                 <>
                   <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-                  Atendiendo...
+                  {t('common.attending')}
                 </>
               ) : (
-                'Voy en camino · Atender'
+                t('notifications.fallOverlay.onMyWay')
               )}
             </button>
             <div className="flex gap-3">
@@ -207,7 +205,7 @@ export default function FallAlertOverlay() {
                 disabled={isBusy}
                 className="flex-1 border border-[#16333F] text-[#16333F] hover:bg-[#16333F] hover:text-white rounded-xl py-2.5 text-xs font-bold transition-colors disabled:opacity-60"
               >
-                Ver historial
+                {t('common.viewHistory')}
               </button>
               <button
                 onClick={handleFalsaAlarma}
@@ -217,10 +215,10 @@ export default function FallAlertOverlay() {
                 {accion === 'falsa' ? (
                   <>
                     <span className="w-3.5 h-3.5 border-2 border-gray-300 border-t-gray-500 rounded-full animate-spin" />
-                    Marcando...
+                    {t('common.marking')}
                   </>
                 ) : (
-                  'Falsa alarma'
+                  t('notifications.fallOverlay.falseAlarm')
                 )}
               </button>
             </div>
