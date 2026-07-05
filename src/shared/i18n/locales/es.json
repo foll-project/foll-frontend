@@ -318,7 +318,6 @@
     "systemUpdatesDesc": "Notificaciones sobre nuevas funciones y mantenimiento de la plataforma.",
     "deleteAccount": "Eliminación permanente de los datos",
     "deleteAccountButton": "Eliminar cuenta",
-    "deleteAccountSubtitle": "Eliminación permanente de los datos",
     "deleteAccountConfirmTitle": "¿Estás seguro de eliminar tu cuenta?",
     "deleteAccountConfirmText": "Esta acción es permanente y eliminará toda la información de tus abuelitos registrados, los vínculos con abuelitos externos y la vinculación con los dispositivos físicos. Esta información no podrá recuperarse.",
     "deleteAccountVerificationTitle": "Verificacion para eliminación de la cuenta",

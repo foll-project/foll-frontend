@@ -14,6 +14,35 @@ const BellIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="non
 const AlertIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>;
 const SaveIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>;
 
+function FarewellView({
+  message,
+  buttonText,
+  onContinue,
+}: {
+  message: string;
+  buttonText: string;
+  onContinue: () => void;
+}) {
+  return (
+    <div className="min-h-[70vh] flex items-center justify-center px-4 py-10">
+      <div className="w-full max-w-xl rounded-[28px] border border-gray-100 bg-white px-8 py-10 text-center shadow-[0_20px_60px_-28px_rgba(0,0,0,0.15)]">
+        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[#FDECEC] text-[#D92D20] ring-8 ring-[#FFF5F4]">
+          <AlertIcon />
+        </div>
+        <h2 className="text-3xl font-extrabold tracking-tight text-[#16333F]">Gracias por usar Foll</h2>
+        <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-gray-600">{message}</p>
+        <button
+          type="button"
+          onClick={onContinue}
+          className="mt-8 inline-flex items-center justify-center rounded-2xl bg-[#D92D20] px-8 py-3.5 text-sm font-bold text-white shadow-[0_10px_28px_-12px_rgba(217,45,32,0.75)] transition-colors hover:bg-[#B42318] cursor-pointer"
+        >
+          {buttonText}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function DeleteAccountModal({
   isOpen,
   title,
@@ -131,6 +160,7 @@ export default function Perfil() {
   const [isDeleteAccountModalOpen, setIsDeleteAccountModalOpen] = useState(false);
   const [deleteAccountStep, setDeleteAccountStep] = useState<'confirm' | 'verify'>('confirm');
   const [deleteAccountPassword, setDeleteAccountPassword] = useState('');
+  const [showFarewellView, setShowFarewellView] = useState(false);
 
   if (isLoading || !perfil) return <div className="h-full flex items-center justify-center font-bold text-[#16333F]">{t('perfil.loading')}</div>;
 
@@ -163,8 +193,8 @@ export default function Perfil() {
       localStorage.removeItem('authToken');
       localStorage.removeItem('authUser');
 
-      window.alert(t('perfil.deleteAccountFarewell'));
-      navigate('/login', { replace: true });
+      setIsDeleteAccountModalOpen(false);
+      setShowFarewellView(true);
     } catch (error) {
       console.error('Error eliminando la cuenta:', error);
       window.alert(t('perfil.deleteAccountError'));
@@ -175,6 +205,16 @@ export default function Perfil() {
     deleteAccountStep === 'confirm'
       ? t('perfil.deleteAccountConfirmTitle')
       : t('perfil.deleteAccountVerificationTitle');
+
+  if (showFarewellView) {
+    return (
+      <FarewellView
+        message={t('perfil.deleteAccountFarewell')}
+        buttonText={t('common.confirm')}
+        onContinue={() => navigate('/login', { replace: true })}
+      />
+    );
+  }
 
   return (
     <div className="max-w-[1200px] mx-auto space-y-8 pb-10">
