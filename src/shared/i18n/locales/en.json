@@ -316,6 +316,17 @@
     "dailyActivitySummaryDesc": "Receive a daily email with a summary of movements and status.",
     "systemUpdates": "System Updates",
     "systemUpdatesDesc": "Notifications about new features and platform maintenance.",
+    "deleteAccount": "Permanent Data Elimination",
+    "deleteAccountButton": "Delete Account",
+    "deleteAccountSubtitle": "Permanent deletion of data",
+    "deleteAccountConfirmTitle": "Are you sure you want to delete your account?",
+    "deleteAccountConfirmText": "This action is permanent and will delete all information about your registered elders, the links with external elders, and the links with physical devices. This information cannot be recovered.",
+    "deleteAccountVerificationTitle": "Account deletion verification",
+    "deleteAccountPasswordLabel": "Account password",
+    "deleteAccountPasswordPlaceholder": "Enter your password again",
+    "deleteAccountVerificationButton": "Confirm",
+    "deleteAccountFarewell": "Your account was deleted successfully. Thanks for using Foll.",
+    "deleteAccountError": "We couldn't delete the account. Check your password and try again.",
     "saveSuccess": "Changes saved successfully"
   },
   "ayuda": {
