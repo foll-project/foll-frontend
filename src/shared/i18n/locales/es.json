@@ -253,6 +253,8 @@
     "locationUnavailable": "Ubicación no disponible",
     "mapUnavailable": "Mapa no disponible — sin coordenadas registradas",
     "coordinatesFallback": "Lat {{lat}}, Lng {{lng}}",
+    "viewRoute": "Ver ruta en Google Maps",
+    "viewRouteHint": "Abrir la ruta desde tu ubicación hasta la dirección del incidente",
     "unknownPatient": "Paciente desconocido",
     "fetchError": "No se pudo cargar el historial de incidentes.",
     "cancelledByDeviceButton": "Cancelado por el botón del dispositivo (falsa alarma).",

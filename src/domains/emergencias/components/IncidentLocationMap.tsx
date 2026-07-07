@@ -1,17 +1,22 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { MapPin, Navigation } from 'lucide-react';
 import L from 'leaflet';
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import 'leaflet/dist/leaflet.css';
 
-const MapPinIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
-    <circle cx="12" cy="10" r="3" />
-  </svg>
-);
+/** Opción A: destino = texto de dirección (mismo que la UI); si no hay, coordenadas. */
+const buildGoogleMapsDirectionsUrl = (
+  latitude: number,
+  longitude: number,
+  address?: string | null,
+): string => {
+  const trimmed = address?.trim();
+  const destination = trimmed ? encodeURIComponent(trimmed) : `${latitude},${longitude}`;
+  return `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
+};
 
 const defaultIcon = L.icon({
   iconUrl: markerIcon,
@@ -57,6 +62,11 @@ export default function IncidentLocationMap({
         lng: longitude!.toFixed(5),
       })
       : t('historial.locationUnavailable'));
+
+  const directionsUrl = useMemo(() => {
+    if (!coordsValid) return null;
+    return buildGoogleMapsDirectionsUrl(latitude, longitude!, address);
+  }, [latitude, longitude, address, coordsValid]);
 
   useEffect(() => {
     if (!coordsValid || !containerRef.current) {
@@ -111,7 +121,7 @@ export default function IncidentLocationMap({
         </div>
         <div className="bg-white px-4 py-3 flex items-start gap-2 text-xs font-semibold text-gray-700 border-t border-gray-100">
           <span className="mt-0.5 shrink-0 text-[#16333F]">
-            <MapPinIcon />
+            <MapPin size={14} strokeWidth={2.25} />
           </span>
           <span className="leading-relaxed">{displayAddress}</span>
         </div>
@@ -122,23 +132,27 @@ export default function IncidentLocationMap({
   return (
     <div className={`relative rounded-xl overflow-hidden border border-gray-200 shadow-sm ${className}`}>
       <div ref={containerRef} className="h-44 w-full z-0" />
-      <a
-        href={`https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="bg-white px-4 py-3 flex items-start justify-between gap-2 text-xs font-semibold text-gray-700 border-t border-gray-100 hover:bg-gray-50 transition-colors block"
-        title="Trazar ruta en Google Maps"
-      >
-        <div className="flex items-start gap-2">
+      <div className="bg-white border-t border-gray-100 px-4 py-3 space-y-3">
+        <div className="flex items-start gap-2.5 text-xs font-semibold text-gray-700">
           <span className="mt-0.5 shrink-0 text-[#16333F]">
-            <MapPinIcon />
+            <MapPin size={15} strokeWidth={2.25} />
           </span>
           <span className="leading-relaxed">{displayAddress}</span>
         </div>
-        <span className="text-[#16333F] whitespace-nowrap opacity-70 underline hover:opacity-100 transition-opacity">
-          Ver ruta ↗
-        </span>
-      </a>
+        {directionsUrl && (
+          <a
+            href={directionsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={t('historial.viewRouteHint')}
+            aria-label={t('historial.viewRouteHint')}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#16333F] px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-[#1f4a5c] hover:shadow-md active:scale-[0.98]"
+          >
+            <Navigation size={15} strokeWidth={2.5} className="shrink-0" />
+            {t('historial.viewRoute')}
+          </a>
+        )}
+      </div>
     </div>
   );
 }
