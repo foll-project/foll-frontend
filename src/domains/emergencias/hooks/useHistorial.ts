@@ -1,68 +1,63 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { EventoCaida, TipoEvento } from '../models/evento.model';
-import type { Notification } from '../../notifications/models/notification.model';
+import { useLocation } from 'react-router-dom';
+import type { EventoCaida, IncidentStatus, TipoEvento } from '../models/evento.model';
+import type { HistorialFocusState } from '../models/historialNavigation.model';
 import { fetchMyPatients } from '../../iam/services/patientsApi';
+import { incidentsApi, type IncidentRecord } from '../services/incidentsApi';
 import { useNotifications } from '../../notifications/hooks/useNotifications';
 import i18n, { getDateLocale } from '../../../shared/i18n';
 
-const FALL_TYPES = ['FallDetected'];
-const FALSE_POSITIVE_TYPES = ['FallCancelled', 'FallDismissed', 'FalsePositive'];
-
-interface ParsedFallData {
-  location?: string;
-  fallType?: string;
-}
-
-const parseFallData = (dataJson?: string | null): ParsedFallData => {
-  if (!dataJson) return {};
-
-  try {
-    const data = JSON.parse(dataJson);
-
-    let location: string | undefined;
-    if (typeof data.location === 'string') {
-      location = data.location;
-    } else if (typeof data.address === 'string') {
-      location = data.address;
-    } else if (data.latitude != null && data.longitude != null) {
-      location = `Lat ${data.latitude}, Lng ${data.longitude}`;
-    }
-
-    const fallType: string | undefined =
-      data.fallType || data.type || data.category || undefined;
-
-    return { location, fallType };
-  } catch {
-    return {};
+const parseIncidentStatus = (status: string): IncidentStatus => {
+  if (status === 'Open' || status === 'Resolved' || status === 'Cancelled') {
+    return status;
   }
+  return 'Resolved';
 };
 
-const mapNotificationToEvento = (
-  notification: Notification,
-  patientNames: Record<number, string>
+const mapIncidentToEvento = (
+  incident: IncidentRecord,
+  patientNames: Record<number, string>,
 ): EventoCaida => {
-  const date = new Date(notification.createdAt);
+  const status = parseIncidentStatus(incident.status);
+  const openedAt = incident.openedAt || incident.lastSignalAt || incident.closedAt;
+  const date = openedAt ? new Date(openedAt) : new Date(NaN);
   const validDate = !Number.isNaN(date.getTime());
   const dateLocale = getDateLocale();
+
   const tipo = (
-    FALSE_POSITIVE_TYPES.includes(notification.notificationType)
+    status === 'Cancelled'
       ? i18n.t('historial.eventTypes.falsePositive')
       : i18n.t('historial.eventTypes.realEmergency')
   ) as TipoEvento;
 
-  const parsed = parseFallData(notification.dataJson);
-
   const paciente =
-    notification.patientId != null && patientNames[notification.patientId]
-      ? patientNames[notification.patientId]
-      : notification.patientId != null
-        ? i18n.t('common.patientNumber', { id: notification.patientId })
-        : i18n.t('historial.unknownPatient');
+    patientNames[incident.patientId] ??
+    i18n.t('common.patientNumber', { id: incident.patientId });
+
+  let direccion: string | null = null;
+  let ubicacion = i18n.t('historial.locationUnavailable');
+  if (incident.address?.trim()) {
+    direccion = incident.address.trim();
+    ubicacion = direccion;
+  } else if (incident.latitude != null && incident.longitude != null) {
+    ubicacion = i18n.t('historial.coordinatesFallback', {
+      lat: incident.latitude,
+      lng: incident.longitude,
+    });
+  }
+
+  const observaciones =
+    incident.finalObservation?.trim() ||
+    (status === 'Cancelled' && incident.cancellationReason === 'UserButtonPressed'
+      ? i18n.t('historial.cancelledByDeviceButton')
+      : '');
 
   return {
-    id: String(notification.notificationLogId),
-    ref: `#EVT-${notification.notificationLogId}`,
+    id: String(incident.incidentId),
+    incidentId: incident.incidentId,
+    patientId: incident.patientId,
+    ref: `#INC-${incident.incidentId}`,
     fecha: validDate
       ? date.toLocaleDateString(dateLocale, { day: '2-digit', month: 'short', year: 'numeric' })
       : '--',
@@ -71,75 +66,153 @@ const mapNotificationToEvento = (
       : '--',
     paciente,
     tipo,
-    ubicacion: parsed.location || i18n.t('historial.locationUnavailable'),
-    observaciones: notification.body || '',
-    tipoCaida: parsed.fallType,
+    status,
+    isActive: status === 'Open',
+    ubicacion,
+    latitude: incident.latitude ?? null,
+    longitude: incident.longitude ?? null,
+    direccion,
+    observaciones,
+    tipoCaida: incident.fallType?.name,
   };
 };
 
 export const useHistorial = () => {
   useTranslation();
-  const { notifications } = useNotifications();
+  const location = useLocation();
+  const focusState = location.state as HistorialFocusState | null;
+  const { lastResolvedIncident, attendFall, markFallAsFalseAlarm, notifications } =
+    useNotifications();
   const [patientNames, setPatientNames] = useState<Record<number, string>>({});
+  const [incidents, setIncidents] = useState<IncidentRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [eventoSeleccionado, setEventoSeleccionado] = useState<EventoCaida | null>(null);
+  const [accionEnCurso, setAccionEnCurso] = useState<'atender' | 'falsa' | null>(null);
 
-  useEffect(() => {
-    let active = true;
+  const fallNotificationCount = useMemo(
+    () => notifications.filter((n) => n.notificationType === 'FallDetected').length,
+    [notifications],
+  );
 
-    const cargarPacientes = async () => {
-      setIsLoading(true);
-      try {
-        const pacientes = await fetchMyPatients();
-        if (!active) return;
+  const cargarIncidentes = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const pacientes = await fetchMyPatients();
+      const mapa: Record<number, string> = {};
+      pacientes.forEach((paciente) => {
+        mapa[paciente.patientId] = paciente.fullName;
+      });
+      setPatientNames(mapa);
 
-        const mapa: Record<number, string> = {};
-        pacientes.forEach((paciente) => {
-          mapa[paciente.patientId] = paciente.fullName;
+      const historiales = await Promise.all(
+        pacientes.map((paciente) => incidentsApi.getHistoryByPatient(paciente.patientId)),
+      );
+
+      const merged = historiales
+        .flat()
+        .sort((a, b) => {
+          const ta = new Date(a.openedAt || 0).getTime();
+          const tb = new Date(b.openedAt || 0).getTime();
+          return tb - ta;
         });
-        setPatientNames(mapa);
-      } catch (error) {
-        console.error('Error al cargar pacientes para el historial:', error);
-      } finally {
-        if (active) setIsLoading(false);
-      }
-    };
 
-    cargarPacientes();
-    return () => {
-      active = false;
-    };
+      setIncidents(merged);
+    } catch (error) {
+      console.error('Error al cargar el historial de incidentes:', error);
+      setLoadError(i18n.t('historial.fetchError'));
+      setIncidents([]);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    void cargarIncidentes();
+  }, [cargarIncidentes]);
+
+  useEffect(() => {
+    if (lastResolvedIncident) {
+      void cargarIncidentes();
+    }
+  }, [lastResolvedIncident?.receivedAt, cargarIncidentes]);
+
+  useEffect(() => {
+    void cargarIncidentes();
+  }, [fallNotificationCount, cargarIncidentes]);
+
   const eventos = useMemo<EventoCaida[]>(() => {
-    return notifications
-      .filter(
-        (n) =>
-          FALL_TYPES.includes(n.notificationType) ||
-          FALSE_POSITIVE_TYPES.includes(n.notificationType)
-      )
-      .map((n) => mapNotificationToEvento(n, patientNames))
-      .sort((a, b) => Number(b.id) - Number(a.id));
-  }, [notifications, patientNames, i18n.language]);
+    return incidents.map((incident) => mapIncidentToEvento(incident, patientNames));
+  }, [incidents, patientNames, i18n.language]);
+
+  useEffect(() => {
+    if (focusState?.refreshAt) {
+      void cargarIncidentes();
+    }
+  }, [focusState?.refreshAt, cargarIncidentes]);
 
   useEffect(() => {
     setEventoSeleccionado((prev) => {
       if (eventos.length === 0) return null;
-      if (prev && eventos.some((e) => e.id === prev.id)) return prev;
-      return eventos[0];
+
+      if (focusState?.selectIncidentId != null) {
+        const focused = eventos.find((e) => e.incidentId === focusState.selectIncidentId);
+        if (focused) return focused;
+      }
+
+      if (prev) {
+        const updated = eventos.find((e) => e.incidentId === prev.incidentId);
+        if (updated) return updated;
+      }
+
+      const activo = eventos.find((e) => e.isActive);
+      return activo ?? eventos[0];
     });
-  }, [eventos]);
+  }, [eventos, focusState?.selectIncidentId, focusState?.refreshAt]);
 
   const seleccionarEvento = (evento: EventoCaida) => {
     setEventoSeleccionado(evento);
   };
 
+  const atenderEventoActivo = useCallback(
+    async (evento: EventoCaida) => {
+      if (!evento.isActive || accionEnCurso) return;
+      setAccionEnCurso('atender');
+      try {
+        await attendFall(evento.patientId);
+        await cargarIncidentes();
+      } finally {
+        setAccionEnCurso(null);
+      }
+    },
+    [accionEnCurso, attendFall, cargarIncidentes],
+  );
+
+  const marcarFalsaAlarma = useCallback(
+    async (evento: EventoCaida) => {
+      if (!evento.isActive || accionEnCurso) return;
+      setAccionEnCurso('falsa');
+      try {
+        await markFallAsFalseAlarm(evento.patientId);
+        await cargarIncidentes();
+      } finally {
+        setAccionEnCurso(null);
+      }
+    },
+    [accionEnCurso, markFallAsFalseAlarm, cargarIncidentes],
+  );
+
   return {
     eventos,
     isLoading,
+    loadError,
+    accionEnCurso,
     detalle: {
       eventoSeleccionado,
       seleccionarEvento,
+      atenderEventoActivo,
+      marcarFalsaAlarma,
     },
   };
 };

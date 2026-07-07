@@ -33,5 +33,5 @@ export interface AuthCredentials {
 export interface QuickAccessProfile {
   id: string;
   name: string;
-  role: 'Cuidador Principal' | 'Cuidador Secundario' | 'Invitado';
+  role: string;
 }

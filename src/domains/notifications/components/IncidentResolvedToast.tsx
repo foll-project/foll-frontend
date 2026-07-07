@@ -49,6 +49,8 @@ export default function IncidentResolvedToast() {
 
   const isFalseAlarm =
     ev.status === 'FalsePositive' || ev.status === 'Cancelled' || Boolean(ev.cancellationReason);
+  const isDeviceButtonCancel =
+    ev.cancellationReason === 'UserButtonPressed' && ev.closedByUserId == null;
   const who = ev.resolvedByMe ? t('common.you') : ev.closedByName?.trim() || t('common.otherCaregiver');
 
   const label = isFalseAlarm
@@ -57,9 +59,13 @@ export default function IncidentResolvedToast() {
 
   let message: string;
   if (isFalseAlarm) {
-    message = ev.resolvedByMe
-      ? t('notifications.incidentResolved.markedFalseByMe', { name: patientName })
-      : t('notifications.incidentResolved.markedFalseByOther', { who, name: patientName });
+    if (isDeviceButtonCancel) {
+      message = t('notifications.incidentResolved.cancelledByDeviceButton', { name: patientName });
+    } else {
+      message = ev.resolvedByMe
+        ? t('notifications.incidentResolved.markedFalseByMe', { name: patientName })
+        : t('notifications.incidentResolved.markedFalseByOther', { who, name: patientName });
+    }
   } else {
     message = ev.resolvedByMe
       ? t('notifications.incidentResolved.attendedByMe', { name: patientName })
