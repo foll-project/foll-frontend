@@ -53,9 +53,9 @@ export default function IncidentLocationMap({
     address?.trim() ||
     (coordsValid
       ? t('historial.coordinatesFallback', {
-          lat: latitude.toFixed(5),
-          lng: longitude!.toFixed(5),
-        })
+        lat: latitude.toFixed(5),
+        lng: longitude!.toFixed(5),
+      })
       : t('historial.locationUnavailable'));
 
   useEffect(() => {
@@ -122,12 +122,23 @@ export default function IncidentLocationMap({
   return (
     <div className={`relative rounded-xl overflow-hidden border border-gray-200 shadow-sm ${className}`}>
       <div ref={containerRef} className="h-44 w-full z-0" />
-      <div className="bg-white px-4 py-3 flex items-start gap-2 text-xs font-semibold text-gray-700 border-t border-gray-100">
-        <span className="mt-0.5 shrink-0 text-[#16333F]">
-          <MapPinIcon />
+      <a
+        href={`https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="bg-white px-4 py-3 flex items-start justify-between gap-2 text-xs font-semibold text-gray-700 border-t border-gray-100 hover:bg-gray-50 transition-colors block"
+        title="Trazar ruta en Google Maps"
+      >
+        <div className="flex items-start gap-2">
+          <span className="mt-0.5 shrink-0 text-[#16333F]">
+            <MapPinIcon />
+          </span>
+          <span className="leading-relaxed">{displayAddress}</span>
+        </div>
+        <span className="text-[#16333F] whitespace-nowrap opacity-70 underline hover:opacity-100 transition-opacity">
+          Ver ruta ↗
         </span>
-        <span className="leading-relaxed">{displayAddress}</span>
-      </div>
+      </a>
     </div>
   );
 }
