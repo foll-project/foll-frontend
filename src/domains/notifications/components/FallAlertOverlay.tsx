@@ -1,32 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { MapPin } from 'lucide-react';
 import { getDateLocale } from '../../../shared/i18n';
 import { useNotifications } from '../hooks/useNotifications';
 import { fetchMyPatients } from '../../iam/services/patientsApi';
+import { incidentsApi } from '../../emergencias/services/incidentsApi';
+import { buildHistorialFocusState } from '../../emergencias/models/historialNavigation.model';
+import {
+  hasFallCoordinates,
+  parseFallNotificationData,
+} from '../utils/parseFallNotificationData';
 import type { Notification } from '../models/notification.model';
-
-interface FallData {
-  fallTypeName?: string;
-  confidence?: string;
-  latitude?: string;
-  longitude?: string;
-}
-
-const parseFallData = (dataJson?: string | null): FallData => {
-  if (!dataJson) return {};
-  try {
-    const d = JSON.parse(dataJson);
-    return {
-      fallTypeName: d.fallTypeName || d.fall_type || undefined,
-      confidence: d.aiConfidenceScore || undefined,
-      latitude: d.latitude || undefined,
-      longitude: d.longitude || undefined,
-    };
-  } catch {
-    return {};
-  }
-};
 
 const formatTime = (createdAt: string, locale: string): string => {
   const date = new Date(createdAt);
@@ -44,6 +29,7 @@ export default function FallAlertOverlay() {
   const { t } = useTranslation();
   const { notifications, attendFall, markFallAsFalseAlarm } = useNotifications();
   const navigate = useNavigate();
+  const location = useLocation();
   const [patientNames, setPatientNames] = useState<Record<number, string>>({});
   const [dismissedIds, setDismissedIds] = useState<number[]>([]);
   const [accion, setAccion] = useState<'atender' | 'falsa' | null>(null);
@@ -80,7 +66,7 @@ export default function FallAlertOverlay() {
 
   if (!currentFall) return null;
 
-  const fallData = parseFallData(currentFall.dataJson);
+  const fallData = parseFallNotificationData(currentFall.dataJson);
   const patientName =
     currentFall.patientId != null && patientNames[currentFall.patientId]
       ? patientNames[currentFall.patientId]
@@ -91,15 +77,56 @@ export default function FallAlertOverlay() {
   const confidencePct = fallData.confidence
     ? `${Math.round(parseFloat(fallData.confidence) * 100)}%`
     : null;
-  const hasLocation = fallData.latitude && fallData.longitude;
+  const coordsValid = hasFallCoordinates(fallData);
+  const addressText =
+    fallData.address ||
+    (coordsValid
+      ? t('historial.coordinatesFallback', {
+          lat: parseFloat(fallData.latitude!).toFixed(4),
+          lng: parseFloat(fallData.longitude!).toFixed(4),
+        })
+      : t('historial.locationUnavailable'));
 
   const isBusy = accion !== null;
+
+  const goToHistorialWithIncident = async (patientId: number) => {
+    let incidentId: number | undefined;
+    try {
+      const active = await incidentsApi.getActiveByPatient(patientId);
+      incidentId = active?.incidentId;
+    } catch {
+      /* el incidente puede haberse cerrado ya */
+    }
+
+    if (!incidentId) {
+      try {
+        const history = await incidentsApi.getHistoryByPatient(patientId);
+        incidentId = history[0]?.incidentId;
+      } catch {
+        /* sin historial */
+      }
+    }
+
+    setDismissedIds((prev) => [...prev, currentFall.notificationLogId]);
+    navigate('/historial', {
+      state: buildHistorialFocusState(incidentId),
+      replace: location.pathname === '/historial',
+    });
+  };
 
   const handleAtender = async () => {
     if (currentFall.patientId == null || isBusy) return;
     setAccion('atender');
+    const patientId = currentFall.patientId;
     try {
-      await attendFall(currentFall.patientId);
+      const active = await incidentsApi.getActiveByPatient(patientId);
+      const incidentId = active?.incidentId;
+      await attendFall(patientId);
+      setDismissedIds((prev) => [...prev, currentFall.notificationLogId]);
+      navigate('/historial', {
+        state: buildHistorialFocusState(incidentId),
+        replace: location.pathname === '/historial',
+      });
     } finally {
       setAccion(null);
     }
@@ -110,14 +137,19 @@ export default function FallAlertOverlay() {
     setAccion('falsa');
     try {
       await markFallAsFalseAlarm(currentFall.patientId);
+      await goToHistorialWithIncident(currentFall.patientId);
     } finally {
       setAccion(null);
     }
   };
 
   const handleVerHistorial = () => {
-    setDismissedIds((prev) => [...prev, currentFall.notificationLogId]);
-    navigate('/historial');
+    if (currentFall.patientId == null) {
+      setDismissedIds((prev) => [...prev, currentFall.notificationLogId]);
+      navigate('/historial');
+      return;
+    }
+    void goToHistorialWithIncident(currentFall.patientId);
   };
 
   return (
@@ -165,19 +197,28 @@ export default function FallAlertOverlay() {
               <p className="text-xs font-bold text-[#16333F]">{fallData.fallTypeName || t('common.notSpecified')}</p>
             </div>
             {confidencePct && (
-              <div className="bg-[#F9F7F1] rounded-xl p-3 text-center">
+              <div className="bg-[#F9F7F1] rounded-xl p-3 text-center col-span-2">
                 <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">{t('notifications.fallOverlay.aiConfidence')}</p>
                 <p className="text-xs font-bold text-[#16333F]">{confidencePct}</p>
               </div>
             )}
-            {hasLocation && (
-              <div className="bg-[#F9F7F1] rounded-xl p-3 text-center">
-                <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">{t('notifications.fallOverlay.location')}</p>
-                <p className="text-[10px] font-bold text-[#16333F] font-mono">
-                  {parseFloat(fallData.latitude!).toFixed(4)}, {parseFloat(fallData.longitude!).toFixed(4)}
+          </div>
+
+          <div className="rounded-2xl border border-[#89BAAF]/40 bg-gradient-to-br from-[#F9F7F1] to-white p-4 flex gap-3.5">
+            <div className="shrink-0 flex h-11 w-11 items-center justify-center rounded-full bg-[#16333F]/10 text-[#16333F]">
+              <MapPin size={20} strokeWidth={2.25} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                {t('notifications.fallOverlay.location')}
+              </p>
+              <p className="text-sm font-bold text-[#16333F] leading-snug">{addressText}</p>
+              {coordsValid && fallData.address && (
+                <p className="text-[10px] font-mono text-gray-500 mt-1.5">
+                  {parseFloat(fallData.latitude!).toFixed(5)}, {parseFloat(fallData.longitude!).toFixed(5)}
                 </p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           <p className="text-xs text-gray-500 text-center leading-relaxed">

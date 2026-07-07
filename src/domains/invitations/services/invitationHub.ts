@@ -9,7 +9,7 @@ export const INVITATION_CHANGED_EVENT = 'invitation.changed';
 export const createInvitationHubConnection = (
   onInvitationChanged: (event: InvitationRealtimeEvent) => void,
 ): signalR.HubConnection => {
-  const hubUrl = `${API_CONFIG.BASE_URL}/hubs/notifications`;
+  const hubUrl = `${API_CONFIG.HUB_BASE_URL}/hubs/notifications`;
 
   const connection = new signalR.HubConnectionBuilder()
     .withUrl(hubUrl, {

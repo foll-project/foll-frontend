@@ -1,4 +1,4 @@
-export type RolCuidador = 'Principal Oficial' | 'Principal Invitado' | 'Secundario';
+export type RolCuidador = string;
 
 export interface Cuidador {
   id: string;

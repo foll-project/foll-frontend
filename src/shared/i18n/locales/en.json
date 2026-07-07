@@ -229,9 +229,12 @@
       "time": "Time",
       "elder": "Elder",
       "eventType": "Event Type",
+      "status": "Status",
       "action": "Action"
     },
     "viewReport": "View Report >",
+    "viewingReport": "Viewing now",
+    "viewingDetail": "Record detail",
     "eventDetail": "Event Details",
     "ref": "Ref: {{ref}}",
     "patient": "Patient",
@@ -248,7 +251,16 @@
       "falseShort": "False"
     },
     "locationUnavailable": "Location unavailable",
-    "unknownPatient": "Unknown patient"
+    "mapUnavailable": "Map unavailable — no coordinates recorded",
+    "coordinatesFallback": "Lat {{lat}}, Lng {{lng}}",
+    "unknownPatient": "Unknown patient",
+    "fetchError": "Could not load incident history.",
+    "cancelledByDeviceButton": "Cancelled via device button (false alarm).",
+    "activeActionsTitle": "Active incident — action required",
+    "activeActionsHint": "When you respond or mark a false alarm, the rest of the team is notified in real time.",
+    "activeBannerHint": "{{ref}} · {{patient}} — respond now to close the alert.",
+    "attendShort": "Attend",
+    "falseAlarmShort": "False alarm"
   },
   "reportes": {
     "title": "Clinical Reports",
@@ -421,6 +433,7 @@
       "fallAttended": "Fall attended",
       "markedFalseByMe": "You marked {{name}}'s fall as a false alarm.",
       "markedFalseByOther": "{{who}} marked {{name}}'s fall as a false alarm.",
+      "cancelledByDeviceButton": "The patient indicated a false alarm using the device button ({{name}}).",
       "attendedByMe": "You responded to {{name}}'s fall. The rest of the team was notified.",
       "attendedByOther": "{{who}} is responding to {{name}}'s fall.",
       "fallTypeLabel": "Fall type: {{type}}"

@@ -1,16 +1,9 @@
-// Configuración de la API
-// Cambiar VITE_API_URL según tu entorno
+import { STACK_ENDPOINTS } from '../stack.config';
 
-const API_BASE_URL = 'http://localhost:8080/api/monolito';
-
-if (!import.meta.env.VITE_API_URL) {
-  console.warn('VITE_API_URL no está definido. Usando http://localhost:5237 como fallback.');
-}
-
+// REST → API Gateway. SignalR → backend directo (sin gateway).
 export const API_CONFIG = {
-  BASE_URL: API_BASE_URL,
-  
-  // Endpoints de IAM/Auth
+  BASE_URL: STACK_ENDPOINTS.API_BASE_URL,
+  HUB_BASE_URL: STACK_ENDPOINTS.HUB_BASE_URL,  // Endpoints de IAM/Auth
   AUTH: {
     LOGIN: '/api/iam/auth/login',
     REGISTER: '/api/iam/auth/register',
