@@ -253,6 +253,8 @@
     "locationUnavailable": "Location unavailable",
     "mapUnavailable": "Map unavailable — no coordinates recorded",
     "coordinatesFallback": "Lat {{lat}}, Lng {{lng}}",
+    "viewRoute": "Get directions in Google Maps",
+    "viewRouteHint": "Open directions from your location to the incident address",
     "unknownPatient": "Unknown patient",
     "fetchError": "Could not load incident history.",
     "cancelledByDeviceButton": "Cancelled via device button (false alarm).",
