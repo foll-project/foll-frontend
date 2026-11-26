@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import type { LoginCredentials } from '../models/user.model';
+import { isValidEmail, isValidPassword } from '../../../shared/utils/validators';
 // IMPORTAMOS TU LOGO REAL
 import logo from '../../../assets/logo.svg';
 
@@ -19,14 +20,38 @@ export default function Login() {
     email: '',
     password: '',
   });
+  const [validationErrors, setValidationErrors] = useState<{ email?: string; password?: string }>({});
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setCredentials(prev => ({ ...prev, [name]: value }));
+    if (validationErrors[name as keyof typeof validationErrors]) {
+      setValidationErrors(prev => ({ ...prev, [name]: undefined }));
+    }
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    const errors: { email?: string; password?: string } = {};
+
+    if (!credentials.email.trim()) {
+      errors.email = t('validation.emailRequired');
+    } else if (!isValidEmail(credentials.email)) {
+      errors.email = t('validation.invalidEmail');
+    }
+
+    if (!credentials.password) {
+      errors.password = t('validation.passwordRequired');
+    } else if (!isValidPassword(credentials.password, 6)) {
+      errors.password = t('validation.passwordMinLength');
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+
+    setValidationErrors({});
     try {
       await login(credentials);
       navigate(redirectPath, { replace: true });
@@ -102,9 +127,14 @@ export default function Login() {
                     onChange={handleChange}
                     placeholder={t('auth.emailPlaceholder')}
                     disabled={isLoading}
-                    className="w-full pl-10 pr-4 py-2.5 bg-[#F9F7F1] border border-gray-200 rounded-lg text-sm text-gray-700 outline-none focus:border-[#16333F] focus:ring-1 focus:ring-[#16333F] shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all disabled:opacity-50"
+                    className={`w-full pl-10 pr-4 py-2.5 bg-[#F9F7F1] border ${
+                      validationErrors.email ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-[#16333F] focus:ring-[#16333F]'
+                    } rounded-lg text-sm text-gray-700 outline-none focus:ring-1 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all disabled:opacity-50`}
                   />
                 </div>
+                {validationErrors.email && (
+                  <p className="mt-1 text-xs text-red-500 ml-1 font-medium">{validationErrors.email}</p>
+                )}
               </div>
 
               <div>
@@ -120,9 +150,14 @@ export default function Login() {
                     onChange={handleChange}
                     placeholder={t('auth.passwordPlaceholder')}
                     disabled={isLoading}
-                    className="w-full pl-10 pr-4 py-2.5 bg-[#F9F7F1] border border-gray-200 rounded-lg text-sm text-gray-700 outline-none focus:border-[#16333F] focus:ring-1 focus:ring-[#16333F] shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all disabled:opacity-50"
+                    className={`w-full pl-10 pr-4 py-2.5 bg-[#F9F7F1] border ${
+                      validationErrors.password ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-[#16333F] focus:ring-[#16333F]'
+                    } rounded-lg text-sm text-gray-700 outline-none focus:ring-1 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)] transition-all disabled:opacity-50`}
                   />
                 </div>
+                {validationErrors.password && (
+                  <p className="mt-1 text-xs text-red-500 ml-1 font-medium">{validationErrors.password}</p>
+                )}
                 <div className="flex justify-end mt-2"><a href="#" className="text-[10px] font-bold text-[#4A697A] hover:text-[#16333F] hover:underline">{t('auth.forgotPassword')}</a></div>
               </div>
 

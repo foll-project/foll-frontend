@@ -5,6 +5,7 @@ import { Input } from '../../../shared/components/inputs/Input';
 import { Button } from '../../../shared/components/buttons/Button';
 import { useAuth } from '../hooks/useAuth';
 import type { RegisterData } from '../models/user.model';
+import { isValidEmail, isValidName, isValidPhone, isValidPassword } from '../../../shared/utils/validators';
 // IMPORTAMOS TU LOGO REAL
 import logo from '../../../assets/logo.svg';
 
@@ -29,53 +30,66 @@ export default function Register() {
     confirmPassword: '',
   });
 
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setValidationError(null);
+    if (fieldErrors[e.target.name]) {
+      setFieldErrors(prev => ({ ...prev, [e.target.name]: '' }));
+    }
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    setValidationError(null);
+    const errors: Record<string, string> = {};
 
-    // Validaciones
     if (!formData.firstName.trim()) {
-      setValidationError(t('validation.firstNameRequired'));
-      return;
+      errors.firstName = t('validation.firstNameRequired');
+    } else if (!isValidName(formData.firstName)) {
+      errors.firstName = t('validation.invalidFullName');
     }
+
     if (!formData.lastName.trim()) {
-      setValidationError(t('validation.lastNameRequired'));
-      return;
+      errors.lastName = t('validation.lastNameRequired');
+    } else if (!isValidName(formData.lastName)) {
+      errors.lastName = t('validation.invalidFullName');
     }
+
     if (!formData.email.trim()) {
-      setValidationError(t('validation.emailRequired'));
-      return;
+      errors.email = t('validation.emailRequired');
+    } else if (!isValidEmail(formData.email)) {
+      errors.email = t('validation.invalidEmail');
     }
+
     if (!formData.phoneNumber.trim()) {
-      setValidationError(t('validation.phoneRequired'));
-      return;
+      errors.phoneNumber = t('validation.phoneRequired');
+    } else if (!isValidPhone(formData.phoneNumber)) {
+      errors.phoneNumber = t('validation.invalidPhone');
     }
+
     if (!formData.password) {
-      setValidationError(t('validation.passwordRequired'));
-      return;
+      errors.password = t('validation.passwordRequired');
+    } else if (!isValidPassword(formData.password, 6)) {
+      errors.password = t('validation.passwordMinLength');
     }
-    if (formData.password.length < 6) {
-      setValidationError(t('validation.passwordMinLength'));
-      return;
-    }
+
     if (formData.password !== formData.confirmPassword) {
-      setValidationError(t('validation.passwordMismatch'));
+      errors.confirmPassword = t('validation.passwordMismatch');
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
       return;
     }
+
+    setFieldErrors({});
 
     try {
       const data: RegisterData = {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        phoneNumber: formData.phoneNumber,
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        email: formData.email.trim().toLowerCase(),
+        phoneNumber: formData.phoneNumber.trim(),
         password: formData.password,
       };
 
@@ -128,11 +142,11 @@ export default function Register() {
               <p className="text-xs text-gray-500">{t('auth.registerSubtitle')}</p>
             </div>
 
-            {/* Mostrar errores */}
-            {(error || validationError) && (
+            {/* Mostrar errores globales de API */}
+            {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                 <p className="text-xs text-red-700 font-medium">
-                  {error || validationError}
+                  {error}
                 </p>
               </div>
             )}
@@ -147,6 +161,7 @@ export default function Register() {
                   placeholder={t('auth.firstNamePlaceholder')}
                   icon={<UserIcon />}
                   disabled={isLoading}
+                  error={fieldErrors.firstName}
                 />
                 <Input
                   label={t('auth.lastName')}
@@ -156,6 +171,7 @@ export default function Register() {
                   placeholder={t('auth.lastNamePlaceholder')}
                   icon={<UserIcon />}
                   disabled={isLoading}
+                  error={fieldErrors.lastName}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -168,6 +184,7 @@ export default function Register() {
                   placeholder={t('auth.emailExamplePlaceholder')}
                   icon={<MailIcon />}
                   disabled={isLoading}
+                  error={fieldErrors.email}
                 />
                 <Input
                   label={t('auth.phone')}
@@ -178,6 +195,7 @@ export default function Register() {
                   placeholder={t('auth.phonePlaceholder')}
                   icon={<PhoneIcon />}
                   disabled={isLoading}
+                  error={fieldErrors.phoneNumber}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -190,6 +208,7 @@ export default function Register() {
                   placeholder={t('auth.passwordPlaceholder')}
                   icon={<LockIcon />}
                   disabled={isLoading}
+                  error={fieldErrors.password}
                 />
                 <Input
                   label={t('auth.confirmPassword')}
@@ -200,6 +219,7 @@ export default function Register() {
                   placeholder={t('auth.passwordPlaceholder')}
                   icon={<LockIcon />}
                   disabled={isLoading}
+                  error={fieldErrors.confirmPassword}
                 />
               </div>
               <div className="pt-5 pb-2">

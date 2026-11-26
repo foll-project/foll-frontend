@@ -59,7 +59,7 @@ export default function IncidentLocationMap({
     (coordsValid
       ? t('historial.coordinatesFallback', {
         lat: latitude.toFixed(5),
-        lng: longitude!.toFixed(5),
+        lon: longitude!.toFixed(5),
       })
       : t('historial.locationUnavailable'));
 

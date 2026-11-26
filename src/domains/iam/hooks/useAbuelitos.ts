@@ -146,12 +146,73 @@ const mapearAnotacionDesdeBackend = (a: BackendAnnotation) => ({
   autor: a.author || ''
 });
 
+const formatearEntradaDiccionario = (key: string, value: string): string => {
+  const cleanKey = key?.trim() || '';
+  const cleanVal = value?.trim() || '';
+
+  // Descartar claves vacías o residuos del bug previo ("Confirmado" / "Dosis estándar" como llaves)
+  if (!cleanKey || cleanKey === 'Confirmado' || cleanKey === 'Dosis estándar') {
+    return '';
+  }
+
+  // Si el valor está vacío, o es el texto por defecto, o es igual a la clave, devolvemos la clave
+  if (!cleanVal || cleanVal === 'Confirmado' || cleanVal === 'Dosis estándar' || cleanVal.toLowerCase() === cleanKey.toLowerCase()) {
+    return cleanKey;
+  }
+
+  // Si el valor ya tiene paréntesis
+  if (cleanVal.startsWith('(') && cleanVal.endsWith(')')) {
+    return `${cleanKey} ${cleanVal}`;
+  }
+
+  return `${cleanKey} (${cleanVal})`;
+};
+
 const mapearValoresDiccionario = (value?: Record<string, string> | null): string[] => {
   if (!value) {
     return [];
   }
 
-  return Object.values(value).filter((item) => item.trim().length > 0);
+  return Object.entries(value)
+    .map(([key, val]) => formatearEntradaDiccionario(key, val))
+    .filter((item) => item.length > 0);
+};
+
+const serializarListaADiccionario = (lista: string[], defaultVal: string): Record<string, string> => {
+  return (lista || [])
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .reduce<Record<string, string>>((acc, item) => {
+      // Ignorar residuos literales
+      if (item === 'Confirmado' || item === 'Dosis estándar') {
+        return acc;
+      }
+
+      // Si el formato es "Nombre: Dosis"
+      const colonIndex = item.indexOf(':');
+      if (colonIndex > 0) {
+        const k = item.substring(0, colonIndex).trim();
+        const v = item.substring(colonIndex + 1).trim();
+        if (k && k !== 'Confirmado' && k !== 'Dosis estándar') {
+          acc[k] = v || defaultVal;
+          return acc;
+        }
+      }
+
+      // Si el formato es "Nombre (Dosis)"
+      const matchParen = item.match(/^([^(]+)\(([^)]+)\)$/);
+      if (matchParen) {
+        const k = matchParen[1].trim();
+        const v = matchParen[2].trim();
+        if (k && k !== 'Confirmado' && k !== 'Dosis estándar') {
+          acc[k] = v || defaultVal;
+          return acc;
+        }
+      }
+
+      acc[item] = defaultVal;
+      return acc;
+    }, {});
 };
 
 const mapearAbuelitoDesdeBackend = (dataBackend: BackendPatientResponse, currentUserId: number): Abuelito => {
@@ -431,15 +492,23 @@ export const useAbuelitos = () => {
 
   const handleRegistrar = async (datos: RegistrarAbuelitoDTO) => {
     try {
+      const edadNum = Number(datos.edad);
+      const currentYear = new Date().getFullYear();
+      const birthYear = !isNaN(edadNum) && edadNum > 0 ? currentYear - edadNum : 1950;
+      const birthDate = `${birthYear}-01-01`;
+
+      const medicalConditions = serializarListaADiccionario(datos.enfermedades, "Confirmado");
+      const medications = serializarListaADiccionario(datos.medicamentos, "Dosis estándar");
+
       const payloadBackend = {
-        dni: datos.dni,
-        firstName: datos.nombre.split(' ')[0],
-        lastName: datos.nombre.split(' ').slice(1).join(' ') || '.', 
-        birthDate: "1950-01-01", // Default requerido por el backend
+        dni: datos.dni.trim(),
+        firstName: datos.nombre.trim().split(' ')[0],
+        lastName: datos.nombre.trim().split(' ').slice(1).join(' ') || '.', 
+        birthDate,
         relationshipTypeId: 1, 
         bloodType: getBloodTypeNumber(datos.grupoSanguineo), 
-        medicalConditions: datos.enfermedades.reduce((acc, enf) => ({ ...acc, [enf]: "Confirmado" }), {}),
-        medications: datos.medicamentos.reduce((acc, med) => ({ ...acc, [med]: "Dosis estándar" }), {})
+        medicalConditions,
+        medications
       };
 
       await apiClient.post<void>(API_CONFIG.PATIENTS.CREATE, payloadBackend);
@@ -457,23 +526,33 @@ export const useAbuelitos = () => {
       if (!abuelitoOriginal) return;
 
       // 2. Mezclamos la data original 
-      const enfermedadesFinales = datosActualizados.enfermedades || abuelitoOriginal.enfermedades || [];
-      const medicamentosFinales = datosActualizados.medicamentos || abuelitoOriginal.medicamentos || [];
-      const nombreFinal = datosActualizados.nombre || abuelitoOriginal.nombre || '';
+      const enfermedadesFinales = (datosActualizados.enfermedades !== undefined
+        ? datosActualizados.enfermedades
+        : (abuelitoOriginal.enfermedades || []));
+      const medicamentosFinales = (datosActualizados.medicamentos !== undefined
+        ? datosActualizados.medicamentos
+        : (abuelitoOriginal.medicamentos || []));
+      const nombreFinal = (datosActualizados.nombre || abuelitoOriginal.nombre || '').trim();
       const grupoSanguineoFinal = datosActualizados.grupoSanguineo
         || abuelitoOriginal.grupoSanguineo
         || i18n.t('bloodTypes.unknown');
 
+      const edadNum = datosActualizados.edad != null && datosActualizados.edad !== ''
+        ? Number(datosActualizados.edad)
+        : Number(abuelitoOriginal.edad);
+      const currentYear = new Date().getFullYear();
+      const birthYear = !isNaN(edadNum) && edadNum > 0 ? currentYear - edadNum : 1950;
+      const birthDate = `${birthYear}-01-01`;
+
       const payloadBackend = {
         firstName: nombreFinal.split(' ')[0],
         lastName: nombreFinal.split(' ').slice(1).join(' ') || '.', 
-        birthDate: "1950-01-01", // Mantenemos el default hasta que agregues fecha al form
+        birthDate,
         bloodType: getBloodTypeNumber(grupoSanguineoFinal),
-        medicalConditions: enfermedadesFinales.reduce((acc, enf) => ({ ...acc, [enf]: "Confirmado" }), {}),
-        medications: medicamentosFinales.reduce((acc, med) => ({ ...acc, [med]: "Dosis estándar" }), {})
+        medicalConditions: serializarListaADiccionario(enfermedadesFinales, "Confirmado"),
+        medications: serializarListaADiccionario(medicamentosFinales, "Dosis estándar")
       };
 
-      
       await apiClient.put(API_CONFIG.PATIENTS.UPDATE(Number(id)), payloadBackend);
       
       await recargarAbuelitos();

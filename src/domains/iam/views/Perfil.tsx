@@ -6,6 +6,7 @@ import { useNotifications } from '../../../domains/notifications/hooks/useNotifi
 import { useInvitations } from '../../../domains/invitations/hooks/useInvitations';
 import { apiClient } from '../../../shared/api/client';
 import { API_CONFIG } from '../../../shared/api/config';
+import { isValidEmail, isValidName, isValidPhone, isValidPassword } from '../../../shared/utils/validators';
 
 // Íconos SVG
 const IdCardIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="16" rx="2" ry="2"/><circle cx="9" cy="10" r="2"/><path d="M15 8h2M15 12h2M7 16h5"/></svg>;
@@ -161,6 +162,7 @@ export default function Perfil() {
   const [deleteAccountStep, setDeleteAccountStep] = useState<'confirm' | 'verify'>('confirm');
   const [deleteAccountPassword, setDeleteAccountPassword] = useState('');
   const [showFarewellView, setShowFarewellView] = useState(false);
+  const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
 
   if (isLoading || !perfil) return <div className="h-full flex items-center justify-center font-bold text-[#16333F]">{t('perfil.loading')}</div>;
 
@@ -183,6 +185,10 @@ export default function Perfil() {
   };
 
   const handleDeleteAccount = async () => {
+    if (!deleteAccountPassword.trim()) {
+      window.alert(t('validation.passwordRequired'));
+      return;
+    }
     try {
       await apiClient.request<void>(API_CONFIG.AUTH.DELETE_ACCOUNT, {
         method: 'DELETE',
@@ -199,6 +205,55 @@ export default function Perfil() {
       console.error('Error eliminando la cuenta:', error);
       window.alert(t('perfil.deleteAccountError'));
     }
+  };
+
+  const handleValidarYGuardar = () => {
+    const errors: Record<string, string> = {};
+
+    if (!formDatos.nombres.trim()) {
+      errors.nombres = t('validation.firstNameRequired');
+    } else if (!isValidName(formDatos.nombres)) {
+      errors.nombres = t('validation.invalidFullName');
+    }
+
+    if (!formDatos.apellidos.trim()) {
+      errors.apellidos = t('validation.lastNameRequired');
+    } else if (!isValidName(formDatos.apellidos)) {
+      errors.apellidos = t('validation.invalidFullName');
+    }
+
+    if (!formDatos.correo.trim()) {
+      errors.correo = t('validation.emailRequired');
+    } else if (!isValidEmail(formDatos.correo)) {
+      errors.correo = t('validation.invalidEmail');
+    }
+
+    if (formDatos.telefono && formDatos.telefono.trim() && !isValidPhone(formDatos.telefono)) {
+      errors.telefono = t('validation.invalidPhone');
+    }
+
+    const { actual, nueva, confirmar } = formPasswords;
+    if (actual || nueva || confirmar) {
+      if (!actual) {
+        errors.actual = t('validation.passwordRequired');
+      }
+      if (!nueva) {
+        errors.nueva = t('validation.passwordRequired');
+      } else if (!isValidPassword(nueva, 6)) {
+        errors.nueva = t('validation.passwordMinLength');
+      }
+      if (nueva !== confirmar) {
+        errors.confirmar = t('validation.passwordMismatch');
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setProfileErrors(errors);
+      return;
+    }
+
+    setProfileErrors({});
+    handlers.handleGuardarCambios();
   };
 
   const deleteAccountModalTitle =
@@ -248,19 +303,71 @@ export default function Perfil() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 mb-1">{t('perfil.firstName')}</label>
-                <input type="text" value={formDatos.nombres} onChange={e => setFormDatos({...formDatos, nombres: e.target.value})} className="w-full bg-transparent border-b border-gray-200 py-1.5 text-sm text-[#16333F] font-semibold outline-none focus:border-[#16333F] transition-colors" />
+                <input
+                  type="text"
+                  value={formDatos.nombres}
+                  onChange={e => {
+                    setFormDatos({...formDatos, nombres: e.target.value});
+                    if (profileErrors.nombres) setProfileErrors(prev => ({...prev, nombres: ''}));
+                  }}
+                  className={`w-full bg-transparent border-b ${
+                    profileErrors.nombres ? 'border-red-400 focus:border-red-500' : 'border-gray-200 focus:border-[#16333F]'
+                  } py-1.5 text-sm text-[#16333F] font-semibold outline-none transition-colors`}
+                />
+                {profileErrors.nombres && (
+                  <p className="mt-1 text-xs text-red-500 font-medium">{profileErrors.nombres}</p>
+                )}
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 mb-1">{t('perfil.lastName')}</label>
-                <input type="text" value={formDatos.apellidos} onChange={e => setFormDatos({...formDatos, apellidos: e.target.value})} className="w-full bg-transparent border-b border-gray-200 py-1.5 text-sm text-[#16333F] font-semibold outline-none focus:border-[#16333F] transition-colors" />
+                <input
+                  type="text"
+                  value={formDatos.apellidos}
+                  onChange={e => {
+                    setFormDatos({...formDatos, apellidos: e.target.value});
+                    if (profileErrors.apellidos) setProfileErrors(prev => ({...prev, apellidos: ''}));
+                  }}
+                  className={`w-full bg-transparent border-b ${
+                    profileErrors.apellidos ? 'border-red-400 focus:border-red-500' : 'border-gray-200 focus:border-[#16333F]'
+                  } py-1.5 text-sm text-[#16333F] font-semibold outline-none transition-colors`}
+                />
+                {profileErrors.apellidos && (
+                  <p className="mt-1 text-xs text-red-500 font-medium">{profileErrors.apellidos}</p>
+                )}
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 mb-1">{t('perfil.email')}</label>
-                <input type="email" value={formDatos.correo} onChange={e => setFormDatos({...formDatos, correo: e.target.value})} className="w-full bg-transparent border-b border-gray-200 py-1.5 text-sm text-[#16333F] font-semibold outline-none focus:border-[#16333F] transition-colors" />
+                <input
+                  type="email"
+                  value={formDatos.correo}
+                  onChange={e => {
+                    setFormDatos({...formDatos, correo: e.target.value});
+                    if (profileErrors.correo) setProfileErrors(prev => ({...prev, correo: ''}));
+                  }}
+                  className={`w-full bg-transparent border-b ${
+                    profileErrors.correo ? 'border-red-400 focus:border-red-500' : 'border-gray-200 focus:border-[#16333F]'
+                  } py-1.5 text-sm text-[#16333F] font-semibold outline-none transition-colors`}
+                />
+                {profileErrors.correo && (
+                  <p className="mt-1 text-xs text-red-500 font-medium">{profileErrors.correo}</p>
+                )}
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 mb-1">{t('perfil.mobilePhone')}</label>
-                <input type="tel" value={formDatos.telefono} onChange={e => setFormDatos({...formDatos, telefono: e.target.value})} className="w-full bg-transparent border-b border-gray-200 py-1.5 text-sm text-[#16333F] font-semibold outline-none focus:border-[#16333F] transition-colors" />
+                <input
+                  type="tel"
+                  value={formDatos.telefono}
+                  onChange={e => {
+                    setFormDatos({...formDatos, telefono: e.target.value});
+                    if (profileErrors.telefono) setProfileErrors(prev => ({...prev, telefono: ''}));
+                  }}
+                  className={`w-full bg-transparent border-b ${
+                    profileErrors.telefono ? 'border-red-400 focus:border-red-500' : 'border-gray-200 focus:border-[#16333F]'
+                  } py-1.5 text-sm text-[#16333F] font-semibold outline-none transition-colors`}
+                />
+                {profileErrors.telefono && (
+                  <p className="mt-1 text-xs text-red-500 font-medium">{profileErrors.telefono}</p>
+                )}
               </div>
             </div>
           </div>
@@ -273,15 +380,57 @@ export default function Perfil() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
               <div className="md:col-span-2">
                 <label className="block text-[10px] font-bold text-gray-400 mb-1">{t('perfil.currentPassword')}</label>
-                <input type="password" placeholder={t('auth.passwordPlaceholder')} value={formPasswords.actual} onChange={e => setFormPasswords({...formPasswords, actual: e.target.value})} className="w-full md:w-1/2 bg-transparent border-b border-gray-200 py-1.5 text-sm text-[#16333F] font-semibold outline-none focus:border-[#16333F] transition-colors" />
+                <input
+                  type="password"
+                  placeholder={t('auth.passwordPlaceholder')}
+                  value={formPasswords.actual}
+                  onChange={e => {
+                    setFormPasswords({...formPasswords, actual: e.target.value});
+                    if (profileErrors.actual) setProfileErrors(prev => ({...prev, actual: ''}));
+                  }}
+                  className={`w-full md:w-1/2 bg-transparent border-b ${
+                    profileErrors.actual ? 'border-red-400 focus:border-red-500' : 'border-gray-200 focus:border-[#16333F]'
+                  } py-1.5 text-sm text-[#16333F] font-semibold outline-none transition-colors`}
+                />
+                {profileErrors.actual && (
+                  <p className="mt-1 text-xs text-red-500 font-medium">{profileErrors.actual}</p>
+                )}
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 mb-1">{t('perfil.newPassword')}</label>
-                <input type="password" placeholder={t('auth.passwordPlaceholder')} value={formPasswords.nueva} onChange={e => setFormPasswords({...formPasswords, nueva: e.target.value})} className="w-full bg-transparent border-b border-gray-200 py-1.5 text-sm text-[#16333F] font-semibold outline-none focus:border-[#16333F] transition-colors" />
+                <input
+                  type="password"
+                  placeholder={t('auth.passwordPlaceholder')}
+                  value={formPasswords.nueva}
+                  onChange={e => {
+                    setFormPasswords({...formPasswords, nueva: e.target.value});
+                    if (profileErrors.nueva) setProfileErrors(prev => ({...prev, nueva: ''}));
+                  }}
+                  className={`w-full bg-transparent border-b ${
+                    profileErrors.nueva ? 'border-red-400 focus:border-red-500' : 'border-gray-200 focus:border-[#16333F]'
+                  } py-1.5 text-sm text-[#16333F] font-semibold outline-none transition-colors`}
+                />
+                {profileErrors.nueva && (
+                  <p className="mt-1 text-xs text-red-500 font-medium">{profileErrors.nueva}</p>
+                )}
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 mb-1">{t('perfil.confirmNewPassword')}</label>
-                <input type="password" placeholder={t('auth.passwordPlaceholder')} value={formPasswords.confirmar} onChange={e => setFormPasswords({...formPasswords, confirmar: e.target.value})} className="w-full bg-transparent border-b border-gray-200 py-1.5 text-sm text-[#16333F] font-semibold outline-none focus:border-[#16333F] transition-colors" />
+                <input
+                  type="password"
+                  placeholder={t('auth.passwordPlaceholder')}
+                  value={formPasswords.confirmar}
+                  onChange={e => {
+                    setFormPasswords({...formPasswords, confirmar: e.target.value});
+                    if (profileErrors.confirmar) setProfileErrors(prev => ({...prev, confirmar: ''}));
+                  }}
+                  className={`w-full bg-transparent border-b ${
+                    profileErrors.confirmar ? 'border-red-400 focus:border-red-500' : 'border-gray-200 focus:border-[#16333F]'
+                  } py-1.5 text-sm text-[#16333F] font-semibold outline-none transition-colors`}
+                />
+                {profileErrors.confirmar && (
+                  <p className="mt-1 text-xs text-red-500 font-medium">{profileErrors.confirmar}</p>
+                )}
               </div>
             </div>
           </div>
@@ -369,7 +518,7 @@ export default function Perfil() {
               {t('common.cancel')}
             </button>
             <button 
-              onClick={handlers.handleGuardarCambios}
+              onClick={handleValidarYGuardar}
               className="px-6 py-3 bg-[#3A5664] hover:bg-[#16333F] text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-colors shadow-md"
             >
               <SaveIcon /> {t('common.saveChanges')}
