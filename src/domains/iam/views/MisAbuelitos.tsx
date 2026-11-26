@@ -6,6 +6,7 @@ import { Modal } from "../../../shared/components/modals/Modal";
 import { ConfirmModal } from "../../../shared/components/modals/ConfirmModal";
 import { PatientQrModal } from "../components/PatientQrModal";
 import type { RegistrarAbuelitoDTO, Abuelito } from "../models/abuelito.model";
+import { isValidDni, isValidAge, isValidName, isValidDeviceId } from "../../../shared/utils/validators";
 
 // Íconos SVG
 const QRIcon = () => (
@@ -235,10 +236,20 @@ export default function MisAbuelitos() {
     nombre: "",
     dni: "",
     edad: "",
-    grupoSanguineo: "",
+    grupoSanguineo: "O+",
     enfermedades: [],
     medicamentos: [],
   });
+  const [regEnfermedades, setRegEnfermedades] = useState("");
+  const [regMedicamentos, setRegMedicamentos] = useState("");
+  const [editEnfermedades, setEditEnfermedades] = useState("");
+  const [editMedicamentos, setEditMedicamentos] = useState("");
+
+  const [registroErrors, setRegistroErrors] = useState<Record<string, string>>({});
+  const [editErrors, setEditErrors] = useState<Record<string, string>>({});
+  const [vincularFamiliarError, setVincularFamiliarError] = useState<string | null>(null);
+  const [hardwareError, setHardwareError] = useState<string | null>(null);
+  const [anotacionError, setAnotacionError] = useState<string | null>(null);
 
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -259,8 +270,12 @@ export default function MisAbuelitos() {
   };*/
 
   const handleIniciarEdicion = () => {
-    if (detalles.abuelitoSeleccionado)
+    if (detalles.abuelitoSeleccionado) {
       setEditForm(detalles.abuelitoSeleccionado);
+      setEditEnfermedades(detalles.abuelitoSeleccionado.enfermedades?.join(", ") || "");
+      setEditMedicamentos(detalles.abuelitoSeleccionado.medicamentos?.join(", ") || "");
+    }
+    setEditErrors({});
     setIsEditing(true);
   };
 
@@ -542,7 +557,11 @@ export default function MisAbuelitos() {
       {/* --- MODAL: Vincular Familiar (Por DNI) --- */}
       <Modal
         isOpen={modals.isVincularOpen}
-        onClose={() => modals.setIsVincularOpen(false)}
+        onClose={() => {
+          modals.setIsVincularOpen(false);
+          setDniVincularFamiliar("");
+          setVincularFamiliarError(null);
+        }}
         title={t("abuelitos.modals.linkFamilyTitle")}
       >
         <p className="text-sm text-gray-500 mb-5">
@@ -550,13 +569,30 @@ export default function MisAbuelitos() {
         </p>
         <input
           type="text"
+          maxLength={8}
           placeholder={t("common.dniExample")}
           value={dniVincularFamiliar}
-          onChange={(e) => setDniVincularFamiliar(e.target.value)}
-          className="w-full px-4 py-3 bg-[#F9F7F1] border border-gray-200 rounded-xl text-sm outline-none focus:border-[#16333F] mb-6"
+          onChange={(e) => {
+            setDniVincularFamiliar(e.target.value.replace(/\D/g, ""));
+            setVincularFamiliarError(null);
+          }}
+          className={`w-full px-4 py-3 bg-[#F9F7F1] border ${
+            vincularFamiliarError ? 'border-red-400 focus:border-red-500' : 'border-gray-200 focus:border-[#16333F]'
+          } rounded-xl text-sm outline-none mb-2`}
         />
+        {vincularFamiliarError && (
+          <p className="text-xs text-red-500 mb-4 ml-1 font-medium">{vincularFamiliarError}</p>
+        )}
         <button
-          onClick={() => handlers.handleVincularFamiliar(dniVincularFamiliar)}
+          onClick={() => {
+            if (!isValidDni(dniVincularFamiliar)) {
+              setVincularFamiliarError(t("validation.invalidDni"));
+              return;
+            }
+            handlers.handleVincularFamiliar(dniVincularFamiliar);
+            setDniVincularFamiliar("");
+            setVincularFamiliarError(null);
+          }}
           className="w-full bg-[#FDECA6] hover:bg-[#FCE07B] text-[#16333F] py-3 rounded-xl font-bold transition-colors"
         >
           {t("common.sendRequest")}
@@ -570,6 +606,7 @@ export default function MisAbuelitos() {
           if (vincular.isLoading) return;
           modals.setIsVincularHardwareOpen(false);
           setCodigoHardware("");
+          setHardwareError(null);
           vincular.clearError();
         }}
         title={t("abuelitos.modals.linkDeviceTitle")}
@@ -592,17 +629,27 @@ export default function MisAbuelitos() {
             <CpuIcon />
           </div>
           <input
-            type="number"
+            type="text"
+            inputMode="numeric"
             placeholder={t("common.deviceIdExample")}
             value={codigoHardware}
             onChange={(e) => {
-              setCodigoHardware(e.target.value);
+              setCodigoHardware(e.target.value.replace(/\D/g, ""));
+              setHardwareError(null);
               vincular.clearError();
             }}
             disabled={vincular.isLoading}
-            className="w-full pl-10 pr-4 py-3 bg-[#F9F7F1] border border-gray-200 rounded-xl text-sm font-mono outline-none focus:border-[#16333F] disabled:opacity-50"
+            className={`w-full pl-10 pr-4 py-3 bg-[#F9F7F1] border ${
+              hardwareError ? 'border-red-400 focus:border-red-500' : 'border-gray-200 focus:border-[#16333F]'
+            } rounded-xl text-sm font-mono outline-none disabled:opacity-50`}
           />
         </div>
+
+        {hardwareError && (
+          <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-4 font-medium">
+            {hardwareError}
+          </p>
+        )}
 
         {vincular.error && (
           <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-4">
@@ -612,6 +659,10 @@ export default function MisAbuelitos() {
 
         <button
           onClick={async () => {
+            if (!isValidDeviceId(codigoHardware)) {
+              setHardwareError(t("validation.invalidDeviceId"));
+              return;
+            }
             await handlers.handleVincularHardwareSubmit(codigoHardware);
             if (!vincular.error) setCodigoHardware("");
           }}
@@ -704,6 +755,7 @@ export default function MisAbuelitos() {
         onClose={() => {
           modals.setIsAnotacionOpen(false);
           setNuevaAnotacion("");
+          setAnotacionError(null);
         }}
         title={t("abuelitos.modals.quickNoteTitle")}
       >
@@ -715,15 +767,34 @@ export default function MisAbuelitos() {
         <textarea
           placeholder={t("abuelitos.modals.quickNotePlaceholder")}
           value={nuevaAnotacion}
-          onChange={(e) => setNuevaAnotacion(e.target.value)}
+          maxLength={500}
+          onChange={(e) => {
+            setNuevaAnotacion(e.target.value);
+            setAnotacionError(null);
+          }}
           rows={4}
-          className="w-full px-4 py-3 bg-[#F9F7F1] border border-gray-200 rounded-xl text-sm outline-none focus:border-[#16333F] mb-6 resize-none"
+          className={`w-full px-4 py-3 bg-[#F9F7F1] border ${
+            anotacionError ? 'border-red-400 focus:border-red-500' : 'border-gray-200 focus:border-[#16333F]'
+          } rounded-xl text-sm outline-none mb-2 resize-none`}
         />
+        {anotacionError && (
+          <p className="text-xs text-red-500 mb-4 ml-1 font-medium">{anotacionError}</p>
+        )}
         <button
           onClick={() => {
-            if (detalles.abuelitoSeleccionado && nuevaAnotacion.trim()) {
-              handlers.handleAñadirAnotacion(detalles.abuelitoSeleccionado.id, nuevaAnotacion);
+            const clean = nuevaAnotacion.trim();
+            if (!clean || clean.length < 3) {
+              setAnotacionError(t("validation.noteRequired"));
+              return;
+            }
+            if (clean.length > 500) {
+              setAnotacionError(t("validation.noteTooLong"));
+              return;
+            }
+            if (detalles.abuelitoSeleccionado) {
+              handlers.handleAñadirAnotacion(detalles.abuelitoSeleccionado.id, clean);
               setNuevaAnotacion("");
+              setAnotacionError(null);
             }
           }}
           className="w-full bg-[#DCA646] hover:bg-[#B8860B] text-white py-3 rounded-xl font-bold transition-colors shadow-md"
@@ -782,54 +853,86 @@ export default function MisAbuelitos() {
       {/* --- MODAL: Registrar Abuelito --- */}
       <Modal
         isOpen={modals.isRegistrarOpen}
-        onClose={() => modals.setIsRegistrarOpen(false)}
+        onClose={() => {
+          modals.setIsRegistrarOpen(false);
+          setRegistroErrors({});
+          setRegEnfermedades("");
+          setRegMedicamentos("");
+        }}
         title={t("abuelitos.modals.registerTitle")}
       >
-        {/* (El mismo formulario que ya tenías) */}
         <div className="space-y-4">
           <div>
             <label className="block text-xs font-bold text-[#16333F] mb-1">
-              {t("abuelitos.modals.fullName")}
+              {t("abuelitos.modals.fullName")} *
             </label>
             <input
               type="text"
-              onChange={(e) =>
-                setFormRegistro({ ...formRegistro, nombre: e.target.value })
-              }
-              className="w-full px-4 py-2.5 bg-[#F9F7F1] border border-gray-200 rounded-xl text-sm outline-none focus:border-[#16333F]"
+              value={formRegistro.nombre}
+              placeholder="Ej. Juan Pérez"
+              onChange={(e) => {
+                setFormRegistro({ ...formRegistro, nombre: e.target.value });
+                if (registroErrors.nombre) setRegistroErrors(prev => ({ ...prev, nombre: "" }));
+              }}
+              className={`w-full px-4 py-2.5 bg-[#F9F7F1] border ${
+                registroErrors.nombre ? 'border-red-400 focus:border-red-500' : 'border-gray-200 focus:border-[#16333F]'
+              } rounded-xl text-sm outline-none`}
             />
+            {registroErrors.nombre && (
+              <p className="mt-1 text-xs text-red-500 font-medium ml-1">{registroErrors.nombre}</p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-[#16333F] mb-1">
-                {t("abuelitos.modals.dni")}
+                {t("abuelitos.modals.dni")} (8 dígitos) *
               </label>
               <input
                 type="text"
-                onChange={(e) =>
-                  setFormRegistro({ ...formRegistro, dni: e.target.value })
-                }
-                className="w-full px-4 py-2.5 bg-[#F9F7F1] border border-gray-200 rounded-xl text-sm outline-none focus:border-[#16333F]"
+                maxLength={8}
+                value={formRegistro.dni}
+                placeholder="12345678"
+                onChange={(e) => {
+                  setFormRegistro({ ...formRegistro, dni: e.target.value.replace(/\D/g, "") });
+                  if (registroErrors.dni) setRegistroErrors(prev => ({ ...prev, dni: "" }));
+                }}
+                className={`w-full px-4 py-2.5 bg-[#F9F7F1] border ${
+                  registroErrors.dni ? 'border-red-400 focus:border-red-500' : 'border-gray-200 focus:border-[#16333F]'
+                } rounded-xl text-sm outline-none`}
               />
+              {registroErrors.dni && (
+                <p className="mt-1 text-xs text-red-500 font-medium ml-1">{registroErrors.dni}</p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-xs font-bold text-[#16333F] mb-1">
-                  {t("abuelitos.modals.age")}
+                  {t("abuelitos.modals.age")} (50-125) *
                 </label>
                 <input
                   type="number"
-                  onChange={(e) =>
-                    setFormRegistro({ ...formRegistro, edad: e.target.value })
-                  }
-                  className="w-full px-4 py-2.5 bg-[#F9F7F1] border border-gray-200 rounded-xl text-sm outline-none focus:border-[#16333F]"
+                  min={50}
+                  max={125}
+                  value={formRegistro.edad}
+                  placeholder="75"
+                  onChange={(e) => {
+                    setFormRegistro({ ...formRegistro, edad: e.target.value });
+                    if (registroErrors.edad) setRegistroErrors(prev => ({ ...prev, edad: "" }));
+                  }}
+                  className={`w-full px-4 py-2.5 bg-[#F9F7F1] border ${
+                    registroErrors.edad ? 'border-red-400 focus:border-red-500' : 'border-gray-200 focus:border-[#16333F]'
+                  } rounded-xl text-sm outline-none`}
                 />
+                {registroErrors.edad && (
+                  <p className="mt-1 text-xs text-red-500 font-medium ml-1">{registroErrors.edad}</p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-bold text-[#16333F] mb-1">
                   {t("abuelitos.modals.bloodGroupShort")}
                 </label>
                 <select
+                  value={formRegistro.grupoSanguineo || "O+"}
                   onChange={(e) =>
                     setFormRegistro({
                       ...formRegistro,
@@ -842,6 +945,10 @@ export default function MisAbuelitos() {
                   <option value="A+">A+</option>
                   <option value="B+">B+</option>
                   <option value="A-">A-</option>
+                  <option value="B-">B-</option>
+                  <option value="AB+">AB+</option>
+                  <option value="AB-">AB-</option>
+                  <option value="O-">O-</option>
                 </select>
               </div>
             </div>
@@ -853,12 +960,8 @@ export default function MisAbuelitos() {
             <input
               type="text"
               placeholder={t("abuelitos.modals.diseasesPlaceholder")}
-              onChange={(e) =>
-                setFormRegistro({
-                  ...formRegistro,
-                  enfermedades: e.target.value.split(","),
-                })
-              }
+              value={regEnfermedades}
+              onChange={(e) => setRegEnfermedades(e.target.value)}
               className="w-full px-4 py-2.5 bg-[#F9F7F1] border border-gray-200 rounded-xl text-sm outline-none focus:border-[#16333F]"
             />
           </div>
@@ -869,17 +972,53 @@ export default function MisAbuelitos() {
             <input
               type="text"
               placeholder={t("abuelitos.modals.medicationsPlaceholder")}
-              onChange={(e) =>
-                setFormRegistro({
-                  ...formRegistro,
-                  medicamentos: e.target.value.split(","),
-                })
-              }
+              value={regMedicamentos}
+              onChange={(e) => setRegMedicamentos(e.target.value)}
               className="w-full px-4 py-2.5 bg-[#F9F7F1] border border-gray-200 rounded-xl text-sm outline-none focus:border-[#16333F]"
             />
           </div>
           <button
-            onClick={() => handlers.handleRegistrar(formRegistro)}
+            onClick={() => {
+              const errors: Record<string, string> = {};
+              if (!formRegistro.nombre.trim()) {
+                errors.nombre = t("validation.fullNameRequired");
+              } else if (!isValidName(formRegistro.nombre)) {
+                errors.nombre = t("validation.invalidFullName");
+              }
+
+              if (!formRegistro.dni.trim() || !isValidDni(formRegistro.dni)) {
+                errors.dni = t("validation.invalidDni");
+              }
+
+              if (!formRegistro.edad || String(formRegistro.edad).trim() === '') {
+                errors.edad = t("validation.ageRequired");
+              } else if (!isValidAge(formRegistro.edad, 50, 125)) {
+                errors.edad = t("validation.invalidAge");
+              }
+
+              if (Object.keys(errors).length > 0) {
+                setRegistroErrors(errors);
+                return;
+              }
+
+              setRegistroErrors({});
+              handlers.handleRegistrar({
+                ...formRegistro,
+                grupoSanguineo: formRegistro.grupoSanguineo || "O+",
+                enfermedades: regEnfermedades.split(",").map(s => s.trim()).filter(Boolean),
+                medicamentos: regMedicamentos.split(",").map(s => s.trim()).filter(Boolean),
+              });
+              setFormRegistro({
+                nombre: "",
+                dni: "",
+                edad: "",
+                grupoSanguineo: "O+",
+                enfermedades: [],
+                medicamentos: [],
+              });
+              setRegEnfermedades("");
+              setRegMedicamentos("");
+            }}
             className="w-full bg-[#3D5665] hover:bg-[#16333F] text-white py-3 mt-4 rounded-xl font-bold transition-colors shadow-md"
           >
             {t("abuelitos.modals.saveRegistration")}
@@ -890,7 +1029,12 @@ export default function MisAbuelitos() {
       {/* --- MODAL: Detalles del Perfil --- */}
       <Modal
         isOpen={modals.isDetallesOpen}
-        onClose={() => modals.setIsDetallesOpen(false)}
+        onClose={() => {
+          modals.setIsDetallesOpen(false);
+          setIsEditing(false);
+          setShowDeleteConfirm(false);
+          setEditErrors({});
+        }}
         title={isEditing ? t("abuelitos.modals.editProfileTitle") : t("abuelitos.modals.profileDetailsTitle")}
       >
         {/* (El mismo modal de editar/ver detalles que ya tenías) */}
@@ -931,14 +1075,23 @@ export default function MisAbuelitos() {
                       {t("abuelitos.modals.fullName")}
                     </label>
                     {isEditing ? (
-                      <input
-                        type="text"
-                        value={editForm.nombre || ""}
-                        onChange={(e) =>
-                          setEditForm({ ...editForm, nombre: e.target.value })
-                        }
-                        className="w-full px-3 py-2 bg-[#F9F7F1] border border-gray-200 rounded-lg text-sm outline-none focus:border-[#16333F]"
-                      />
+                      <div>
+                        <input
+                          type="text"
+                          value={editForm.nombre || ""}
+                          placeholder="Nombre y apellido"
+                          onChange={(e) => {
+                            setEditForm({ ...editForm, nombre: e.target.value });
+                            if (editErrors.nombre) setEditErrors(prev => ({ ...prev, nombre: "" }));
+                          }}
+                          className={`w-full px-3 py-2 bg-[#F9F7F1] border ${
+                            editErrors.nombre ? 'border-red-400 focus:border-red-500' : 'border-gray-200 focus:border-[#16333F]'
+                          } rounded-lg text-sm outline-none`}
+                        />
+                        {editErrors.nombre && (
+                          <p className="mt-1 text-xs text-red-500 font-medium">{editErrors.nombre}</p>
+                        )}
+                      </div>
                     ) : (
                       <p className="font-semibold text-[#16333F]">
                         {detalles.abuelitoSeleccionado.nombre}
@@ -958,17 +1111,28 @@ export default function MisAbuelitos() {
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="block text-xs font-bold text-gray-500 mb-1">
-                          {t("abuelitos.modals.age")}
+                          {t("abuelitos.modals.age")} (50-125)
                         </label>
                         {isEditing ? (
-                          <input
-                            type="number"
-                            value={editForm.edad || ""}
-                            onChange={(e) =>
-                              setEditForm({ ...editForm, edad: e.target.value })
-                            }
-                            className="w-full px-3 py-2 bg-[#F9F7F1] border border-gray-200 rounded-lg text-sm outline-none focus:border-[#16333F]"
-                          />
+                          <div>
+                            <input
+                              type="number"
+                              min={50}
+                              max={125}
+                              value={editForm.edad || ""}
+                              placeholder="75"
+                              onChange={(e) => {
+                                setEditForm({ ...editForm, edad: e.target.value });
+                                if (editErrors.edad) setEditErrors(prev => ({ ...prev, edad: "" }));
+                              }}
+                              className={`w-full px-3 py-2 bg-[#F9F7F1] border ${
+                                editErrors.edad ? 'border-red-400 focus:border-red-500' : 'border-gray-200 focus:border-[#16333F]'
+                              } rounded-lg text-sm outline-none`}
+                            />
+                            {editErrors.edad && (
+                              <p className="mt-1 text-xs text-red-500 font-medium">{editErrors.edad}</p>
+                            )}
+                          </div>
                         ) : (
                           <p className="font-semibold text-[#16333F]">
                             {detalles.abuelitoSeleccionado.edad} {t("common.years")}
@@ -1010,20 +1174,16 @@ export default function MisAbuelitos() {
                     {isEditing ? (
                       <input
                         type="text"
-                        value={editForm.enfermedades?.join(", ") || ""}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            enfermedades: e.target.value.split(", "),
-                          })
-                        }
+                        placeholder={t("abuelitos.modals.diseasesPlaceholder")}
+                        value={editEnfermedades}
+                        onChange={(e) => setEditEnfermedades(e.target.value)}
                         className="w-full px-3 py-2 bg-[#F9F7F1] border border-gray-200 rounded-lg text-sm outline-none focus:border-[#16333F]"
                       />
                     ) : (
                       <p className="font-semibold text-[#16333F]">
-                        {detalles.abuelitoSeleccionado.enfermedades?.join(
-                          ", ",
-                        ) || t("abuelitos.modals.noConditions")}
+                        {detalles.abuelitoSeleccionado.enfermedades && detalles.abuelitoSeleccionado.enfermedades.length > 0
+                          ? detalles.abuelitoSeleccionado.enfermedades.join(", ")
+                          : t("abuelitos.modals.noConditions")}
                       </p>
                     )}
                   </div>
@@ -1034,20 +1194,16 @@ export default function MisAbuelitos() {
                     {isEditing ? (
                       <input
                         type="text"
-                        value={editForm.medicamentos?.join(", ") || ""}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            medicamentos: e.target.value.split(", "),
-                          })
-                        }
+                        placeholder={t("abuelitos.modals.medicationsPlaceholder")}
+                        value={editMedicamentos}
+                        onChange={(e) => setEditMedicamentos(e.target.value)}
                         className="w-full px-3 py-2 bg-[#F9F7F1] border border-gray-200 rounded-lg text-sm outline-none focus:border-[#16333F]"
                       />
                     ) : (
                       <p className="font-semibold text-[#16333F]">
-                        {detalles.abuelitoSeleccionado.medicamentos?.join(
-                          ", ",
-                        ) || t("abuelitos.modals.noMedications")}
+                        {detalles.abuelitoSeleccionado.medicamentos && detalles.abuelitoSeleccionado.medicamentos.length > 0
+                          ? detalles.abuelitoSeleccionado.medicamentos.join(", ")
+                          : t("abuelitos.modals.noMedications")}
                       </p>
                     )}
                   </div>
@@ -1203,12 +1359,38 @@ export default function MisAbuelitos() {
                         {t("common.cancel")}
                       </button>
                       <button
-                        onClick={() =>
+                        onClick={() => {
+                          const errors: Record<string, string> = {};
+                          if (editForm.nombre !== undefined) {
+                            if (!editForm.nombre.trim()) {
+                              errors.nombre = t("validation.fullNameRequired");
+                            } else if (!isValidName(editForm.nombre)) {
+                              errors.nombre = t("validation.invalidFullName");
+                            }
+                          }
+
+                          if (editForm.edad !== undefined && String(editForm.edad).trim() !== "") {
+                            if (!isValidAge(editForm.edad, 50, 125)) {
+                              errors.edad = t("validation.invalidAge");
+                            }
+                          }
+
+                          if (Object.keys(errors).length > 0) {
+                            setEditErrors(errors);
+                            return;
+                          }
+
+                          setEditErrors({});
                           handlers.handleActualizar(
                             detalles.abuelitoSeleccionado!.id,
-                            editForm,
-                          )
-                        }
+                            {
+                              ...editForm,
+                              enfermedades: editEnfermedades.split(",").map(s => s.trim()).filter(Boolean),
+                              medicamentos: editMedicamentos.split(",").map(s => s.trim()).filter(Boolean),
+                            },
+                          );
+                          setIsEditing(false);
+                        }}
                         className="flex-1 bg-[#3D5665] text-white py-2.5 rounded-xl font-bold text-sm hover:bg-[#16333F] transition-colors"
                       >
                         {t("common.saveChanges")}

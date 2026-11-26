@@ -1,0 +1,27 @@
+# Prod local Docker: 3 instancias frontend + LB nginx → KrakenD Cloud Run
+services:
+  frontend1:
+    build: .
+    image: foll-frontend:prod
+
+  frontend2:
+    build: .
+    image: foll-frontend:prod
+
+  frontend3:
+    build: .
+    image: foll-frontend:prod
+
+  load-balancer:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile.lb
+      args:
+        NGINX_CONF: nginx.prod.conf
+    image: foll-frontend-lb:prod
+    ports:
+      - "80:80"
+    depends_on:
+      - frontend1
+      - frontend2
+      - frontend3

@@ -83,7 +83,7 @@ export default function FallAlertOverlay() {
     (coordsValid
       ? t('historial.coordinatesFallback', {
           lat: parseFloat(fallData.latitude!).toFixed(4),
-          lng: parseFloat(fallData.longitude!).toFixed(4),
+          lon: parseFloat(fallData.longitude!).toFixed(4),
         })
       : t('historial.locationUnavailable'));
 

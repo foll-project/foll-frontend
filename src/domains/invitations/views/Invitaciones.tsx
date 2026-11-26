@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useInvitations } from '../hooks/useInvitations';
 import type { Invitation, InvitationStatus } from '../models/invitation.model';
+import { isValidDni } from '../../../shared/utils/validators';
 
 const RELATIONSHIP_IDS = [1, 2, 3, 4] as const;
 
@@ -77,8 +78,8 @@ export default function Invitaciones() {
     setFormSuccess(null);
 
     const cleanDni = dni.trim();
-    if (cleanDni.length < 6) {
-      setFormError(t('invitaciones.invalidDni'));
+    if (!isValidDni(cleanDni)) {
+      setFormError(t('validation.invalidDni'));
       return;
     }
 
@@ -121,8 +122,12 @@ export default function Invitaciones() {
             <label className="block text-xs font-semibold text-gray-500 mb-1">{t('invitaciones.elderDni')}</label>
             <input
               type="text"
+              maxLength={8}
               value={dni}
-              onChange={(e) => setDni(e.target.value)}
+              onChange={(e) => {
+                setDni(e.target.value.replace(/\D/g, ''));
+                if (formError) setFormError(null);
+              }}
               placeholder={t('invitaciones.dniPlaceholder')}
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-[#16333F] focus:outline-none focus:ring-2 focus:ring-[#16333F]/10 transition"
             />

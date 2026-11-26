@@ -43,7 +43,7 @@ const mapIncidentToEvento = (
   } else if (incident.latitude != null && incident.longitude != null) {
     ubicacion = i18n.t('historial.coordinatesFallback', {
       lat: incident.latitude,
-      lng: incident.longitude,
+      lon: incident.longitude,
     });
   }
 
